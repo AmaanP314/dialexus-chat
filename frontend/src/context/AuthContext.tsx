@@ -22,6 +22,7 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const base_url = process.env.NEXT_PUBLIC_BASE;
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<CurrentUser | null>(null);
@@ -58,7 +59,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
   useEffect(() => {
     if (user && !ws.current) {
-      const wsUrl = `ws://localhost:8000/api/v1/chat/ws`;
+      const wsUrl = `ws://${base_url}/api/v1/chat/ws`;
       ws.current = new WebSocket(wsUrl);
 
       ws.current.onopen = () => console.log("WebSocket Connected");
