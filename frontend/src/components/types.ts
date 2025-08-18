@@ -2,7 +2,7 @@
 export interface CurrentUser {
   id: number;
   username: string;
-  type: "user" | "admin";
+  type: "user" | "admin" | "super_admin";
   created_at: string;
 }
 
