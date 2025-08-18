@@ -22,7 +22,6 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const ws = process.env.NEXT_PUBLIC_WS_URL;
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<CurrentUser | null>(null);
@@ -59,7 +58,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
   useEffect(() => {
     if (user && !ws.current) {
-      const wsUrl = `${ws}`;
+      const wsUrl = process.env.NEXT_PUBLIC_WS_URL;
+      if (!wsUrl) {
+        console.error(
+          "WebSocket URL is not defined. Please check your environment variables."
+        );
+        return;
+      }
       ws.current = new WebSocket(wsUrl);
 
       ws.current.onopen = () => console.log("WebSocket Connected");
