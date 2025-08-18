@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Base Colors */
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+
+    /* Cards & Muted Elements */
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+
+    /* Primary Interactive Elements */
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+
+    /* Borders */
+    --border: 240 3.7% 15.9%;
+
+    /* Chat Bubbles & Status */
+    --bubble-sent: 142 76% 25%;
+    --bubble-received: 240 3.7% 15.9%;
+    --status-read: 217 91% 60%;
+
+    /* Radius */
+    --radius: 0.5rem;
+  }
+
+  /* The dark theme is the default, so no need for a separate @media block */
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  ::-webkit-scrollbar {
+    width: 10px; /* Adjust scrollbar width */
+    height: 10px; /* Adjust scrollbar height for horizontal scrollbars */
+  }
+
+  ::-webkit-scrollbar-track {
+    /* Make the track slightly darker than the main background for subtle contrast */
+    background: hsl(
+      240 10% 2.9%
+    ); /* Example: A slightly darker version of your --background */
+    border-radius: 10px; /* Rounded corners for the track */
+  }
+
+  ::-webkit-scrollbar-thumb {
+    /* Use --muted-foreground for the thumb to make it stand out more */
+    background-color: var(--muted-foreground); /* Lighter color for the thumb */
+    border-radius: 10px; /* Rounded corners for the thumb */
+    /* Keep the border matching the track for the "floating" effect, using the darker track color */
+    border: 3px solid hsl(240 10% 2.9%);
+  }
+
+  /* On hover, make the thumb even lighter */
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(
+      --foreground
+    ); /* Use --foreground for a more prominent hover state */
+  }
+}
