@@ -18,7 +18,9 @@ interface AuthContextType {
   logout: (reason?: string) => void;
   isLoading: boolean;
   sendMessage: (payload: object) => void;
-  lastEvent: any | null; // The single source for all WS events
+  lastEvent: any | null;
+  // New function to be called by the login page
+  handleLoginSuccess: () => Promise<CurrentUser>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,59 +34,63 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async (reason?: string) => {
     try {
-      // Still attempt to call the backend logout endpoint
       await logoutUser();
     } catch (error) {
-      console.error(
-        "Logout API call failed, proceeding with client-side logout:",
-        error
-      );
+      console.error("Logout API call failed:", error);
     } finally {
-      // Clear local state
       setUser(null);
       if (ws.current) {
         ws.current.close();
         ws.current = null;
       }
-
-      // Redirect with or without a reason
-      if (reason) {
-        const encodedReason = encodeURIComponent(reason);
-        router.push(`/login?reason=${encodedReason}`);
-      } else {
-        router.push("/login");
-      }
+      const redirectUrl = reason
+        ? `/login?reason=${encodeURIComponent(reason)}`
+        : "/login";
+      window.location.href = redirectUrl;
     }
   };
+
+  // This is the new function that solves the race condition
+  const handleLoginSuccess = async (): Promise<CurrentUser> => {
+    try {
+      const userData = await getCurrentUser();
+      setUser(userData); // Set the user state
+      return userData; // Return the user data to the login page
+    } catch (error) {
+      // If this fails, something is wrong with the session, so log out
+      logout();
+      throw new Error("Failed to initialize session after login.");
+    }
+  };
+
   useEffect(() => {
     if (user && !ws.current) {
-      const wsUrl = process.env.NEXT_PUBLIC_WS_URL;
-      if (!wsUrl) {
-        console.error(
-          "WebSocket URL is not defined. Please check your environment variables."
-        );
-        return;
-      }
+      const wsUrl =
+        process.env.NEXT_PUBLIC_WS_URL || `ws://localhost:8000/api/v1/chat/ws`;
       ws.current = new WebSocket(wsUrl);
-
       ws.current.onopen = () => console.log("WebSocket Connected");
-
       ws.current.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          // Update the state with the latest event from the server
+          if (data.event === "force_logout") {
+            logout(data.reason);
+            return;
+          }
           setLastEvent(data);
         } catch (error) {
           console.error("Failed to parse incoming message:", error);
         }
       };
-
       ws.current.onclose = () => {
         ws.current = null;
       };
       ws.current.onerror = (error) => console.error("WebSocket Error:", error);
     }
-    return () => ws.current?.close();
+    return () => {
+      if (ws.current) {
+        ws.current.close();
+      }
+    };
   }, [user]);
 
   useEffect(() => {
@@ -115,6 +121,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isLoading,
         sendMessage,
         lastEvent,
+        handleLoginSuccess,
       }}
     >
       {children}
