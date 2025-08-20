@@ -54,7 +54,7 @@ export const loginUser = async ({
 };
 
 export const logoutUser = async (): Promise<Response> => {
-  return apiFetch("/auth/logout", { method: "POST" });
+  return apiFetch("/auth/logout", { method: "POST", credentials: "include", });
 };
 
 export const getCurrentUser = async (): Promise<CurrentUser> => {
