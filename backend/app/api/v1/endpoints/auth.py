@@ -12,10 +12,10 @@ router = APIRouter()
 def set_auth_cookies(response: Response, access_token: str, refresh_token: str):
     """Utility function to set auth cookies on a response."""
     response.set_cookie(
-        key="access_token", value=access_token, httponly=True, samesite="lax", secure=True
+        key="access_token", value=access_token, httponly=True, samesite="lax", secure=False
     )
     response.set_cookie(
-        key="refresh_token", value=refresh_token, httponly=True, samesite="lax", secure=True
+        key="refresh_token", value=refresh_token, httponly=True, samesite="lax", secure=False
     )
 
 def delete_auth_cookies(response: Response):
