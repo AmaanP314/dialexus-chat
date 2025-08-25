@@ -38,3 +38,14 @@ def get_current_user_from_cookie(request: Request, db: Session = Depends(get_db)
         raise credentials_exception
         
     return user
+
+def get_current_super_admin(current_user: SuperAdmin = Depends(get_current_user_from_cookie)) -> SuperAdmin:
+    """
+    Dependency to ensure the current user is a Super Admin.
+    """
+    if not isinstance(current_user, SuperAdmin):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operation not permitted. Requires super admin privileges."
+        )
+    return current_user

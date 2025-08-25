@@ -1,6 +1,6 @@
 # app/schemas/user.py
 from pydantic import BaseModel, Field
-from typing import List, Union
+from typing import List, Union, Optional
 import datetime
 from .group import GroupOut
 
@@ -14,6 +14,7 @@ class MeProfileOut(BaseModel):
     type: str
     created_by: str
     created_at: datetime.datetime
+    admin_key: Optional[str] = None
 
 class UserOut(BaseModel):
     id: int

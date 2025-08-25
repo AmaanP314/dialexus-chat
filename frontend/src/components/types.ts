@@ -4,6 +4,7 @@ export interface CurrentUser {
   username: string;
   type: "user" | "admin" | "super_admin";
   created_at: string;
+  admin_key?: string; // Only for admins
 }
 
 // For the /api/v1/users/search endpoint

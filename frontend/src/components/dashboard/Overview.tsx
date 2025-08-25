@@ -59,7 +59,7 @@ export default function Overview() {
         <StatCard
           icon={KeyRound}
           label="Admin Key"
-          value={user?.id.toString() || "N/A"}
+          value={user?.admin_key.toString() || "N/A"}
         />
 
         {isLoadingStats

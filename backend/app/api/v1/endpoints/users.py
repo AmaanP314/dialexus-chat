@@ -5,7 +5,7 @@ from typing import Union
 
 from app.db.session import get_db, get_mongo_db
 from app.security.dependencies import get_current_user_from_cookie
-from app.models import User, Admin, Group, GroupMember
+from app.models import User, Admin, SuperAdmin, Group, GroupMember
 from app.websocket.connection_manager import manager
 from typing import List
 from app.schemas.user import UserOut, AdminOut, SearchResult, ConversationList, ConversationPartner, MeOut, MeProfileOut
@@ -14,31 +14,37 @@ router = APIRouter()
 
 @router.get("/me", response_model=MeProfileOut)
 def read_users_me(
-    # Use the new cookie-based dependency here
-    current_entity: Union[User, Admin] = Depends(get_current_user_from_cookie)
+    current_entity: Union[User, Admin, SuperAdmin] = Depends(get_current_user_from_cookie)
 ):
     """
     Get the profile of the currently authenticated user or admin.
-    Authentication is now handled via HttpOnly cookies.
+    Includes admin_key for admin users.
     """
-    if isinstance(current_entity, User):
-        creator_name = current_entity.owner_admin.username
-        entity_type = "user"
-    elif isinstance(current_entity, Admin):
-        creator_name = "Super Admin"
-        entity_type = "admin"
-    else:
-        # This case handles if a Super Admin somehow hits this endpoint
-        creator_name = "System"
-        entity_type = "super_admin"
+    response_data = {
+        "id": current_entity.id,
+        "username": current_entity.username,
+        "created_at": current_entity.created_at,
+        "admin_key": None # Default to None
+    }
 
-    return MeProfileOut(
-        id=current_entity.id,
-        username=current_entity.username,
-        type=entity_type,
-        created_by=creator_name,
-        created_at=current_entity.created_at
-    )
+    if isinstance(current_entity, User):
+        response_data["type"] = "user"
+        response_data["created_by"] = current_entity.owner_admin.username
+    
+    elif isinstance(current_entity, Admin):
+        response_data["type"] = "admin"
+        response_data["created_by"] = "Super Admin"
+        # *** FIX IS HERE: Add the admin_key to the response data ***
+        response_data["admin_key"] = current_entity.admin_key
+        
+    elif isinstance(current_entity, SuperAdmin):
+        response_data["type"] = "super_admin"
+        response_data["created_by"] = "System"
+        
+    else:
+        raise HTTPException(status_code=403, detail="Invalid entity type.")
+
+    return MeProfileOut(**response_data)
 
 @router.get("/search", response_model=SearchResult)
 def search_for_entities(
