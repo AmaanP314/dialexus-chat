@@ -12,10 +12,10 @@ router = APIRouter()
 def set_auth_cookies(response: Response, access_token: str, refresh_token: str):
     """Utility function to set auth cookies on a response."""
     response.set_cookie(
-        key="access_token", value=access_token, httponly=True, samesite="lax", secure=False
+        key="access_token", value=access_token, httponly=True, samesite="lax", secure=False, path="/"
     )
     response.set_cookie(
-        key="refresh_token", value=refresh_token, httponly=True, samesite="lax", secure=False
+        key="refresh_token", value=refresh_token, httponly=True, samesite="lax", secure=False, path="/"
     )
 
 def delete_auth_cookies(response: Response):
@@ -101,7 +101,7 @@ def refresh_token(request: Request, response: Response, db: Session = Depends(ge
     new_token_data = {"sub": token_data.username, "role": token_data.role, "tenant_id": token_data.tenant_id}
     new_access_token = create_access_token(data=new_token_data)
     
-    response.set_cookie(key="access_token", value=new_access_token, httponly=True, samesite="lax", secure=True)
+    response.set_cookie(key="access_token", value=new_access_token, httponly=True, samesite="lax", secure=False, path="/")
     return
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
