@@ -145,3 +145,16 @@ export interface ConversationPair {
   last_message_timestamp: string;
   message_count: number;
 }
+
+export interface Notification {
+  conversation_details: {
+    id: number;
+    name: string;
+    type: "user" | "admin" | "group";
+  };
+  last_message: {
+    preview: string;
+    timestamp: string;
+  };
+  unread_count: number;
+}

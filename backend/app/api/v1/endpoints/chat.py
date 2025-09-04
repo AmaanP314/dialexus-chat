@@ -159,44 +159,81 @@ async def websocket_endpoint(
             event_type = message_data.get("event", "new_message")
             messages_collection = mongo_db["messages"]
 
+            # if event_type == "messages_read":
+                # partner = message_data.get("partner")
+                # if not partner: continue
+                
+                # messages_to_update = await messages_collection.find({
+                #     "receiver.id": entity.id, "receiver.role": token_data.role,
+                #     "sender.id": partner["id"], "sender.role": partner["role"],
+                #     "status": {"$in": ["sent", "received"]}
+                # }).to_list(length=None)
+
+                # if not messages_to_update: continue
+                
+                # msg_ids = [msg["_id"] for msg in messages_to_update]
+                # await messages_collection.update_many(
+                #     {"_id": {"$in": msg_ids}},
+                #     {"$set": {"status": "read"}}
+                # )
+                
+                # partner_connection_id = f"{partner['role']}-{partner['id']}"
+                # await manager.send_personal_message(json.dumps({
+                #     "event": "status_update",
+                #     "message_ids": [str(mid) for mid in msg_ids],
+                #     "status": "read"
+                # }), partner_connection_id)
+                # continue
             if event_type == "messages_read":
                 partner = message_data.get("partner")
-                if not partner: continue
-                
-                messages_to_update = await messages_collection.find({
-                    "receiver.id": entity.id, "receiver.role": token_data.role,
-                    "sender.id": partner["id"], "sender.role": partner["role"],
-                    "status": {"$in": ["sent", "received"]}
-                }).to_list(length=None)
+                group_id = message_data.get("group_id")
 
-                if not messages_to_update: continue
-                
-                msg_ids = [msg["_id"] for msg in messages_to_update]
+                if not (partner or group_id):
+                    continue
+
+                query_filter = { "read_by": { "$ne": entity.id } }
+                if partner:
+                    query_filter.update({
+                        "type": "private",
+                        "sender.id": partner["id"],
+                        "sender.role": partner["role"],
+                        "receiver.id": entity.id,
+                        "receiver.role": token_data.role
+                    })
+                elif group_id:
+                    query_filter.update({
+                        "type": "group",
+                        "group.id": group_id
+                    })
+
                 await messages_collection.update_many(
-                    {"_id": {"$in": msg_ids}},
-                    {"$set": {"status": "read"}}
+                    query_filter,
+                    { "$addToSet": { "read_by": entity.id } }
                 )
                 
-                partner_connection_id = f"{partner['role']}-{partner['id']}"
-                await manager.send_personal_message(json.dumps({
-                    "event": "status_update",
-                    "message_ids": [str(mid) for mid in msg_ids],
-                    "status": "read"
-                }), partner_connection_id)
+                # Note: We no longer need to send a 'status_update' back.
+                # The frontend will know based on its own logic.
                 continue
-
             if event_type == "new_message":
                 raw_content = message_data.get("content")
                 if isinstance(raw_content, dict):
                     content_obj = raw_content
                 else:
                     continue
+                # mongo_message = {
+                #     "type": message_data.get("type"),
+                #     "sender": {"id": entity.id, "role": token_data.role, "username": entity.username},
+                #     "content": content_obj,
+                #     "timestamp": datetime.now(pytz.utc),
+                #     "status": "sent",
+                #     "is_deleted": False
+                # }
                 mongo_message = {
                     "type": message_data.get("type"),
                     "sender": {"id": entity.id, "role": token_data.role, "username": entity.username},
                     "content": content_obj,
-                    "timestamp": datetime.now(pytz.utc),
-                    "status": "sent",
+                    "timestamp": datetime.now(pytz.timezone('Asia/Kolkata')),
+                    "read_by": [entity.id],  # Sender has implicitly read the message
                     "is_deleted": False
                 }
 

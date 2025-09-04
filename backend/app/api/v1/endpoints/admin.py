@@ -12,7 +12,8 @@ from app.models import Admin, User, Group, GroupMember
 from app.schemas.user import UserOut, UserCreate, UserPasswordReset
 from app.schemas.group import GroupCreateWithMembers, GroupWithMembers, GroupOut
 from app.schemas.admin import ConversationSummary
-from app.schemas.message import MessageHistory
+# from app.schemas.message import MessageHistory
+from app.schemas.message import PaginatedMessageResponse
 from app.websocket.connection_manager import manager
 from app.cache.group_members import remove_group_from_cache, add_member_to_cache, remove_member_from_cache
 
@@ -365,7 +366,7 @@ async def list_user_to_user_conversations(
         
     return response
 
-@router.get("/messages/users/{user1_id}/{user2_id}", response_model=MessageHistory)
+@router.get("/messages/users/{user1_id}/{user2_id}", response_model=PaginatedMessageResponse)
 async def get_user_to_user_message_history(
     user1_id: int,
     user2_id: int,
