@@ -6,19 +6,19 @@ import React, {
   useState,
   ReactNode,
   useEffect,
-  useCallback,
 } from "react";
 import { useAuth } from "./AuthContext";
-import { useSocket } from "./SocketContext";
-import { getNotificationSummary } from "@/lib/api";
-import { Notification, RealtimeMessage } from "@/components/types";
+import { RealtimeMessage } from "@/components/types";
+
+interface UnreadCounts {
+  [key: string]: number;
+}
 
 interface NotificationContextType {
-  notifications: Notification[];
-  activeConversationId: string | null;
-  setActiveConversationId: (id: string | null) => void;
+  unreadCounts: UnreadCounts;
+  activeChatId: string | null;
+  setActiveChatId: (id: string | null) => void;
   clearUnreadCount: (id: string) => void;
-  totalUnreadCount: number;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(
@@ -26,120 +26,61 @@ const NotificationContext = createContext<NotificationContextType | undefined>(
 );
 
 export const NotificationProvider = ({ children }: { children: ReactNode }) => {
-  const { isAuthenticated, user } = useAuth();
-  const { lastEvent, sendMessage } = useSocket();
+  const [unreadCounts, setUnreadCounts] = useState<UnreadCounts>({});
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const { user, lastEvent, sendMessage } = useAuth();
 
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [activeConversationId, setActiveConversationId] = useState<
-    string | null
-  >(null);
-
-  // 1. Initial Data Fetch on Login
   useEffect(() => {
-    if (isAuthenticated) {
-      getNotificationSummary().then((data) => {
-        setNotifications(data.notifications);
-      });
-    } else {
-      setNotifications([]); // Clear notifications on logout
-    }
-  }, [isAuthenticated]);
+    if (lastEvent && user) {
+      // Check if the event is a new message by looking for a sender property
+      if (
+        lastEvent.sender &&
+        (lastEvent.type === "private" || lastEvent.type === "group")
+      ) {
+        const msg = lastEvent as RealtimeMessage;
 
-  // 2. Handle Incoming Messages
-  const handleNewMessage = useCallback(
-    (msg: RealtimeMessage) => {
-      if (!user || msg.sender.id === user.id) return;
+        // Ignore messages sent by the current user
+        if (msg.sender.id === user.id) return;
 
-      const conversationId =
-        msg.type === "group"
-          ? `group-${msg.group!.id}`
-          : `user-${msg.sender.id}`;
+        const incomingChatId =
+          msg.type === "group"
+            ? `group-${msg.group!.id}`
+            : `user-${msg.sender.id}`;
 
-      // If chat is currently open, it's read instantly
-      if (conversationId === activeConversationId) {
-        sendMessage({
-          event: "messages_read",
-          ...(msg.type === "group"
-            ? { group_id: msg.group!.id }
-            : { partner: { id: msg.sender.id, role: msg.sender.role } }),
-        });
-        return;
-      }
-
-      // Otherwise, it's unread. Update the list.
-      setNotifications((prev) => {
-        const existingNotificationIndex = prev.findIndex(
-          (n) =>
-            `${n.conversation_details.type}-${n.conversation_details.id}` ===
-            conversationId
-        );
-        const newNotifications = [...prev];
-
-        const newNotificationData = {
-          conversation_details:
-            msg.type === "group"
-              ? { id: msg.group!.id, name: msg.group!.name, type: "group" }
-              : {
-                  id: msg.sender.id,
-                  name: msg.sender.username,
-                  type: msg.sender.role,
-                },
-          last_message: {
-            preview:
-              msg.content.text || (msg.content.image ? "[Image]" : "[File]"),
-            timestamp: msg.timestamp,
-          },
-          unread_count: 1,
-        };
-
-        if (existingNotificationIndex > -1) {
-          const existing = newNotifications[existingNotificationIndex];
-          existing.unread_count += 1;
-          existing.last_message = newNotificationData.last_message;
-          // Move to top
-          newNotifications.splice(existingNotificationIndex, 1);
-          newNotifications.unshift(existing);
+        // Core logic for unread messages
+        if (incomingChatId === activeChatId) {
+          // If the chat is already open, the message is instantly "read."
+          // Send the 'messages_read' event back to the backend.
+          if (msg.type === "private") {
+            sendMessage({
+              event: "messages_read",
+              partner: { id: msg.sender.id, role: msg.sender.role },
+            });
+          }
         } else {
-          newNotifications.unshift(newNotificationData);
+          // If the chat is not open, increment the unread count
+          setUnreadCounts((prev) => ({
+            ...prev,
+            [incomingChatId]: (prev[incomingChatId] || 0) + 1,
+          }));
         }
-        return newNotifications;
-      });
-    },
-    [user, activeConversationId, sendMessage]
-  );
-
-  useEffect(() => {
-    if (lastEvent && lastEvent.sender) {
-      // A simple check for a message event
-      handleNewMessage(lastEvent);
+      }
     }
-  }, [lastEvent, handleNewMessage]);
+  }, [lastEvent, user, activeChatId, sendMessage]);
 
-  // 3. Clear Notifications when a chat is opened
   const clearUnreadCount = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) =>
-        `${n.conversation_details.type}-${n.conversation_details.id}` === id
-          ? { ...n, unread_count: 0 }
-          : n
-      )
-    );
+    setUnreadCounts((prev) => {
+      const newCounts = { ...prev };
+      if (newCounts[id]) {
+        delete newCounts[id];
+      }
+      return newCounts;
+    });
   };
-
-  const totalUnreadCount = notifications.reduce(
-    (sum, n) => sum + n.unread_count,
-    0
-  );
 
   return (
     <NotificationContext.Provider
-      value={{
-        notifications,
-        activeConversationId,
-        setActiveConversationId,
-        clearUnreadCount,
-        totalUnreadCount,
-      }}
+      value={{ unreadCounts, activeChatId, setActiveChatId, clearUnreadCount }}
     >
       {children}
     </NotificationContext.Provider>

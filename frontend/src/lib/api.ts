@@ -8,14 +8,13 @@ import {
   AdminViewGroup,
   CreatedGroup,
   ConversationPair,
-  Notification,
 } from "@/components/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 let isRefreshing = false;
 
-export const apiFetch = async (
+const apiFetch = async (
   url: string,
   options: RequestInit = {}
 ): Promise<Response> => {
@@ -55,7 +54,7 @@ export const loginUser = async ({
 };
 
 export const logoutUser = async (): Promise<Response> => {
-  return apiFetch("/auth/logout", { method: "POST", credentials: "include" });
+  return apiFetch("/auth/logout", { method: "POST", credentials: "include", });
 };
 
 export const getCurrentUser = async (): Promise<CurrentUser> => {
@@ -258,37 +257,4 @@ export const getAdminUserToUserMessages = async (
   const response = await apiFetch(url);
   if (!response.ok) throw new Error("Failed to fetch user-to-user messages.");
   return response.json();
-};
-
-// You can put this in a `types.ts` if you want
-// type Notification = {
-//   conversation_details: {
-//     id: number;
-//     name: string;
-//     type: "user" | "admin" | "group";
-//   };
-//   last_message: {
-//     preview: string;
-//     timestamp: string;
-//   };
-//   unread_count: number;
-// };
-
-// type NotificationSummaryResponse = {
-//   notifications: Notification[];
-// };
-
-// export const getNotificationSummary =
-//   async (): Promise<NotificationSummaryResponse> => {
-//     const res = await apiFetch("/notifications/summary");
-//     const data = await res.json(); // 👈 parse the JSON
-//     return data as NotificationSummaryResponse;
-//   };
-
-export const getNotificationSummary = async (): Promise<{
-  notifications: Notification[];
-}> => {
-  const response = await apiFetch("/notifications/summary");
-  const data = await response.json();
-  return data as { notifications: Notification[] };
 };

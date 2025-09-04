@@ -5,25 +5,26 @@ import Sidebar from "@/components/Sidebar";
 import ChatWindow from "@/components/ChatWindow";
 import {
   Conversation,
+  ConversationCache,
   Message,
-  MessageContent,
   RealtimeMessage,
+  MessageContent,
 } from "@/components/types";
 import { MessageSquareText } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { useSocket } from "@/context/SocketContext"; // <-- Import useSocket
 import { getMessages, getConversations } from "@/lib/api";
 
 export default function ChatPage() {
-  const { user, isLoading: isAuthLoading } = useAuth();
-  const { sendMessage, lastEvent } = useSocket(); // <-- Get sendMessage and lastEvent from SocketContext
+  const { user, lastEvent, sendMessage, isLoading: isAuthLoading } = useAuth();
 
   const [conversationsList, setConversationsList] = useState<Conversation[]>(
     []
   );
   const [selectedConversation, setSelectedConversation] =
     useState<Conversation | null>(null);
-  const [conversationsCache, setConversationsCache] = useState(new Map());
+  const [conversationsCache, setConversationsCache] = useState<
+    Map<number, ConversationCache>
+  >(new Map());
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
 
   useEffect(() => {
@@ -85,17 +86,11 @@ export default function ChatPage() {
     [user?.id]
   );
 
-  // useEffect(() => {
-  //   if (lastEvent) {
-  //     if (lastEvent.type === "private" || lastEvent.type === "group") {
-  //       handleRealtimeMessage(lastEvent);
-  //     }
-  //   }
-  // }, [lastEvent, handleRealtimeMessage]);
   useEffect(() => {
-    if (lastEvent && lastEvent.sender) {
-      // Check if it's a message event
-      handleRealtimeMessage(lastEvent);
+    if (lastEvent) {
+      if (lastEvent.type === "private" || lastEvent.type === "group") {
+        handleRealtimeMessage(lastEvent);
+      }
     }
   }, [lastEvent, handleRealtimeMessage]);
 
