@@ -13,6 +13,8 @@ from app.websocket.connection_manager import manager
 from app.cache.group_members import get_group_members
 from app.cache.tenant_members import get_tenant_connection_ids
 
+from app.db.session import get_db, get_mongo_db, SessionLocal
+
 router = APIRouter()
 
 async def broadcast_presence_update(tenant_id: int, user_id: int, role: str, status: str, db: Session):
@@ -30,12 +32,37 @@ async def broadcast_presence_update(tenant_id: int, user_id: int, role: str, sta
     await manager.broadcast_to_users(payload, list(broadcast_list))
 
 # --- Background task for database updates on disconnect ---
-def update_last_seen(user_id: int, db: Session):
+# def update_last_seen(user_id: int, db: Session):
+#     try:
+#         user = db.query(User).filter(User.id == user_id).first()
+#         if user:
+#             user.last_seen = datetime.utcnow()
+#             db.commit()
+#     finally:
+#         db.close()
+def update_last_seen(entity_id: int, entity_role: str):
+    """
+    Synchronously updates the last_seen timestamp for a user or admin.
+    This function creates its own DB session to ensure atomicity.
+    """
+    db = SessionLocal()
     try:
-        user = db.query(User).filter(User.id == user_id).first()
-        if user:
-            user.last_seen = datetime.utcnow()
+        if entity_role == "user":
+            db_entity = db.query(User).filter(User.id == entity_id).first()
+        elif entity_role == "admin":
+            db_entity = db.query(Admin).filter(Admin.id == entity_id).first()
+        else:
+            return
+
+        if db_entity:
+            db_entity.last_seen = datetime.utcnow()
             db.commit()
+            print(f"SYNC: Successfully updated last_seen for {entity_role} {entity_id}")
+        else:
+            print(f"No {entity_role} found with ID {entity_id}")
+    except Exception as e:
+        print(f"Error in update_last_seen_sync: {e}")
+        db.rollback()
     finally:
         db.close()
 
@@ -233,7 +260,8 @@ async def websocket_endpoint(
                     "sender": {"id": entity.id, "role": token_data.role, "username": entity.username},
                     "content": content_obj,
                     "timestamp": datetime.now(pytz.timezone('Asia/Kolkata')),
-                    "read_by": [entity.id],  # Sender has implicitly read the message
+                    "read_by": [entity.id], 
+                    "status": "sent",
                     "is_deleted": False
                 }
 
@@ -273,15 +301,16 @@ async def websocket_endpoint(
     except WebSocketDisconnect:
         manager.disconnect(connection_id_str)
         await broadcast_presence_update(tenant_id, entity.id, token_data.role, "offline", db)
-        if isinstance(entity, User):
-            # Create a new session for the background task
-            db_session_for_task = next(get_db())
-            background_tasks.add_task(update_last_seen, entity.id, db_session_for_task)
+        update_last_seen(entity.id, token_data.role)
+        # if isinstance(entity, User):
+        #     # Create a new session for the background task
+        #     db_session_for_task = next(get_db())
+        #     background_tasks.add_task(update_last_seen, entity.id, db_session_for_task)
     except Exception as e:
         print(f"Error in WebSocket: {e}")
         manager.disconnect(connection_id_str)
         await broadcast_presence_update(tenant_id, entity.id, token_data.role, "offline", db)
-        if isinstance(entity, User):
-            db_session_for_task = next(get_db())
-            background_tasks.add_task(update_last_seen, entity.id, db_session_for_task)
-
+        update_last_seen(entity.id, token_data.role)
+        # if isinstance(entity, User):
+        #     db_session_for_task = next(get_db())
+        #     background_tasks.add_task(update_last_seen, entity.id, db_session_for_task)

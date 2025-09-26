@@ -7,10 +7,10 @@ class Admin(Base):
     __tablename__ = 'admins'
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(50), unique=True, nullable=False)
+    full_name = Column(String, nullable=True)
     password_hash = Column(Text, nullable=False)
     admin_key = Column(Text, unique=True, nullable=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    
     users = relationship("User", back_populates="owner_admin", cascade="all, delete-orphan")
     groups = relationship("Group", back_populates="owner_admin", cascade="all, delete-orphan")

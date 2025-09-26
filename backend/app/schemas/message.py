@@ -116,7 +116,6 @@ class MessageContent(BaseModel):
     text: Optional[str] = None
     image: Optional[str] = None
     file: Optional[str] = None
-    fileName: Optional[str] = None
 
 # The main response model for a single message
 class MessageOut(BaseModel):
@@ -129,6 +128,7 @@ class MessageOut(BaseModel):
     content: MessageContent
     timestamp: datetime.datetime
     is_deleted: bool = False
+    read_by: Optional[List[int]] = None
     status: str 
 
     class Config:

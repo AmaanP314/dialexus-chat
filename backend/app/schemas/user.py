@@ -7,10 +7,12 @@ from .group import GroupOut
 class UserCreate(BaseModel):
     username: str
     password: str
+    full_name: Optional[str] = None
 
 class MeProfileOut(BaseModel):
     id: int
     username: str
+    full_name: Optional[str] = None
     type: str
     created_by: str
     created_at: datetime.datetime
@@ -19,6 +21,7 @@ class MeProfileOut(BaseModel):
 class UserOut(BaseModel):
     id: int
     username: str
+    full_name: Optional[str] = None
     type: str = "User"
     
     class Config:
@@ -27,6 +30,7 @@ class UserOut(BaseModel):
 class AdminOut(BaseModel):
     id: int
     username: str
+    full_name: Optional[str] = None
     type: str = "Admin"
     admin_key: str
 
@@ -46,6 +50,7 @@ class SearchResult(BaseModel):
 class ConversationPartner(BaseModel):
     id: int
     name: str
+    full_name: Optional[str] = None
     type: str # "user", "group", or "admin"
     last_message: str
     timestamp: datetime.datetime
@@ -58,4 +63,8 @@ class UserLoginSchema(BaseModel):
     password: str
 
 class UserPasswordReset(BaseModel):
+    new_password: str
+
+class PasswordUpdate(BaseModel):
+    old_password: str
     new_password: str

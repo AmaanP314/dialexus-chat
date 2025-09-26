@@ -38,6 +38,21 @@ const apiFetch = async (
   return response;
 };
 
+// export const loginUser = async ({
+//   username,
+//   password,
+// }: {
+//   username: string;
+//   password: string;
+// }): Promise<Response> => {
+//   return fetch(`${API_BASE_URL}/auth/login`, {
+//     method: "POST",
+//     headers: { "Content-Type": "application/json" },
+//     body: JSON.stringify({ username, password }),
+//     credentials: "include",
+//   });
+// };
+
 export const loginUser = async ({
   username,
   password,
@@ -45,16 +60,15 @@ export const loginUser = async ({
   username: string;
   password: string;
 }): Promise<Response> => {
-  return fetch(`${API_BASE_URL}/auth/login`, {
+  return apiFetch("/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password }),
-    credentials: "include",
   });
 };
 
 export const logoutUser = async (): Promise<Response> => {
-  return apiFetch("/auth/logout", { method: "POST", credentials: "include", });
+  return apiFetch("/auth/logout", { method: "POST", credentials: "include" });
 };
 
 export const getCurrentUser = async (): Promise<CurrentUser> => {

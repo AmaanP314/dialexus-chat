@@ -119,7 +119,7 @@ collection = db["messages"]
 
 # Define your date range (UTC timezone is assumed)
 start_date = datetime(2025, 8, 25)
-end_date = datetime(2025, 9, 4)
+end_date = datetime(2025, 9, 26)
 
 # Delete all messages where timestamp is within the range
 result = collection.delete_many({

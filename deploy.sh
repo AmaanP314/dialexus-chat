@@ -17,7 +17,7 @@ cd backend
 sudo docker build -t chat-backend .
 sudo docker stop chat-backend-container || true
 sudo docker rm chat-backend-container || true
-sudo docker run -d --restart always -p 7860:7860 --env-file ./.env --name chat-backend-container chat-backend
+sudo docker run -d --restart always -p 7860:7860 --env-file ./.env --add-host=host.docker.internal:host-gateway --name chat-backend-container chat-backend
 cd ..
 
 # Redeploy the frontend
