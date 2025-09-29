@@ -37,7 +37,7 @@ const ConversationItem: React.FC<ConversationItemProps> = ({
       <div className="flex-grow ml-4 overflow-hidden">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-foreground truncate">
-            {conversation.name}
+            {conversation.full_name || conversation.name}
           </h3>
           <p className="text-xs text-muted-foreground flex-shrink-0 ml-2">
             {formatTimestamp(conversation.timestamp)}

@@ -16,7 +16,9 @@ const UserProfile: React.FC = () => {
     <div className="flex items-center justify-between p-4 bg-muted/50">
       <Avatar name={user.username} />
       <div className="flex-grow ml-4">
-        <h2 className="font-bold text-foreground">{user.username}</h2>
+        <h2 className="font-bold text-foreground">
+          {user.full_name || user.username}
+        </h2>
         <p className="text-sm capitalize text-muted-foreground">{user.type}</p>
       </div>
       <button

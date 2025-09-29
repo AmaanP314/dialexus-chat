@@ -1,11 +1,150 @@
+// "use client";
+
+// import React, { useState } from "react";
+// import { AdminViewUser } from "../types";
+// import { createUser } from "@/lib/api";
+// import { useDashboard } from "@/context/DashboardContext";
+// import { Copy, Check } from "lucide-react";
+// import { InteractiveUserTable } from "./InteractiveUserTable"; // Re-using the table for context
+
+// interface CreateUserProps {
+//   allUsers: AdminViewUser[];
+//   setSuccessData: (data: { user: AdminViewUser; pass: string } | null) => void;
+//   successData: { user: AdminViewUser; pass: string } | null;
+// }
+
+// const CreateUser: React.FC<CreateUserProps> = ({
+//   allUsers,
+//   setSuccessData,
+//   successData,
+// }) => {
+//   const [username, setUsername] = useState("");
+//   const [password, setPassword] = useState("");
+//   const [isLoading, setIsLoading] = useState(false);
+//   const [error, setError] = useState<string | null>(null);
+//   const [isCopied, setIsCopied] = useState(false);
+//   const { addNewUserToCache } = useDashboard();
+
+//   const handleSubmit = async (e: React.FormEvent) => {
+//     e.preventDefault();
+//     setIsLoading(true);
+//     setError(null);
+//     setSuccessData(null); // Clear previous success message
+//     try {
+//       const newUser = await createUser({ username, password });
+//       setSuccessData({ user: newUser, pass: password });
+//       addNewUserToCache(newUser);
+//       setUsername("");
+//       setPassword("");
+//     } catch (err: any) {
+//       setError(err.message || "Failed to create user.");
+//     } finally {
+//       setIsLoading(false);
+//     }
+//   };
+
+//   const handleCopy = () => {
+//     if (!successData) return;
+//     navigator.clipboard.writeText(successData.pass);
+//     setIsCopied(true);
+//     setTimeout(() => setIsCopied(false), 2000);
+//   };
+
+//   return (
+//     <div className="space-y-8">
+//       <h2 className="text-2xl font-bold text-foreground">Create New User</h2>
+//       <div className="bg-background p-6 rounded-lg border border-border">
+//         <form onSubmit={handleSubmit} className="space-y-4">
+//           <div>
+//             <label className="block text-sm font-medium text-muted-foreground mb-1">
+//               Username
+//             </label>
+//             <input
+//               type="text"
+//               value={username}
+//               onChange={(e) => setUsername(e.target.value)}
+//               placeholder="Enter a unique username"
+//               required
+//               className="w-full px-4 py-2 bg-muted border border-border rounded-lg"
+//             />
+//           </div>
+//           <div>
+//             <label className="block text-sm font-medium text-muted-foreground mb-1">
+//               Password
+//             </label>
+//             <input
+//               type="password"
+//               value={password}
+//               onChange={(e) => setPassword(e.target.value)}
+//               placeholder="Enter a strong password"
+//               required
+//               className="w-full px-4 py-2 bg-muted border border-border rounded-lg"
+//             />
+//           </div>
+//           <button
+//             type="submit"
+//             disabled={isLoading}
+//             className="w-full px-4 py-3 font-semibold text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50"
+//           >
+//             {isLoading ? "Creating..." : "Create User"}
+//           </button>
+//         </form>
+
+//         {error && <p className="text-red-500 mt-4 text-sm">{error}</p>}
+
+//         {successData && (
+//           <div className="mt-6 p-4 bg-green-900/50 border border-green-700 rounded-lg space-y-2">
+//             <h3 className="font-semibold text-green-300">
+//               User Created Successfully!
+//             </h3>
+//             <p className="text-sm text-foreground">
+//               ID: <span className="font-mono">{successData.user.id}</span>
+//             </p>
+//             <p className="text-sm text-foreground">
+//               Username:{" "}
+//               <span className="font-semibold">{successData.user.username}</span>
+//             </p>
+//             <div className="flex items-center gap-2">
+//               <p className="text-sm text-foreground">Password:</p>
+//               <span className="font-mono bg-muted px-2 py-1 rounded">
+//                 {successData.pass}
+//               </span>
+//               <button
+//                 onClick={handleCopy}
+//                 className="p-1 text-muted-foreground hover:text-foreground"
+//               >
+//                 {isCopied ? (
+//                   <Check size={16} className="text-green-400" />
+//                 ) : (
+//                   <Copy size={16} />
+//                 )}
+//               </button>
+//             </div>
+//           </div>
+//         )}
+//       </div>
+//       <div className="mt-8">
+//         <h3 className="text-lg font-semibold mb-4">Existing Users</h3>
+//         <InteractiveUserTable
+//           users={allUsers}
+//           onUserSelect={() => {}}
+//           selectedUserId={null}
+//         />
+//       </div>
+//     </div>
+//   );
+// };
+
+// export default CreateUser;
+
 "use client";
 
 import React, { useState } from "react";
 import { AdminViewUser } from "../types";
 import { createUser } from "@/lib/api";
 import { useDashboard } from "@/context/DashboardContext";
-import { Copy, Check } from "lucide-react";
-import { InteractiveUserTable } from "./InteractiveUserTable"; // Re-using the table for context
+import { Copy, Check, Eye, EyeOff } from "lucide-react"; // Imported Eye and EyeOff
+import { InteractiveUserTable } from "./InteractiveUserTable";
 
 interface CreateUserProps {
   allUsers: AdminViewUser[];
@@ -19,10 +158,14 @@ const CreateUser: React.FC<CreateUserProps> = ({
   successData,
 }) => {
   const [username, setUsername] = useState("");
+  const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+  // NEW STATE: Toggle visibility of the password field
+  const [showPassword, setShowPassword] = useState(false);
+
   const { addNewUserToCache } = useDashboard();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -31,10 +174,19 @@ const CreateUser: React.FC<CreateUserProps> = ({
     setError(null);
     setSuccessData(null); // Clear previous success message
     try {
-      const newUser = await createUser({ username, password });
+      // UPDATED API CALL: Include full_name
+      const newUser = await createUser({
+        username,
+        password,
+        full_name: fullName,
+      });
+
       setSuccessData({ user: newUser, pass: password });
       addNewUserToCache(newUser);
+
+      // Clear all form fields
       setUsername("");
+      setFullName("");
       setPassword("");
     } catch (err: any) {
       setError(err.message || "Failed to create user.");
@@ -45,86 +197,170 @@ const CreateUser: React.FC<CreateUserProps> = ({
 
   const handleCopy = () => {
     if (!successData) return;
+    if (!navigator.clipboard) {
+      console.error("Clipboard API not available");
+      return;
+    }
     navigator.clipboard.writeText(successData.pass);
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
   };
 
   return (
-    <div className="space-y-8">
-      <h2 className="text-2xl font-bold text-foreground">Create New User</h2>
-      <div className="bg-background p-6 rounded-lg border border-border">
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="space-y-10">
+      <h2 className="text-3xl font-extrabold text-foreground border-b pb-2">
+        User Management Console
+      </h2>
+
+      <div className="bg-background p-8 rounded-xl shadow-lg border border-border">
+        <h3 className="text-2xl font-bold mb-6 text-foreground">
+          Create New User
+        </h3>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* FULL NAME FIELD */}
           <div>
-            <label className="block text-sm font-medium text-muted-foreground mb-1">
+            <label
+              className="block text-sm font-medium text-muted-foreground mb-2"
+              htmlFor="full-name"
+            >
+              Full Name
+            </label>
+            <input
+              id="full-name"
+              type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="e.g., Jane Doe"
+              required
+              className="w-full px-4 py-2.5 bg-muted border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition duration-150 ease-in-out"
+            />
+          </div>
+
+          {/* USERNAME FIELD */}
+          <div>
+            <label
+              className="block text-sm font-medium text-muted-foreground mb-2"
+              htmlFor="username"
+            >
               Username
             </label>
             <input
+              id="username"
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="Enter a unique username"
               required
-              className="w-full px-4 py-2 bg-muted border border-border rounded-lg"
+              className="w-full px-4 py-2.5 bg-muted border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition duration-150 ease-in-out"
             />
           </div>
+
+          {/* PASSWORD FIELD with Show/Hide Toggle */}
           <div>
-            <label className="block text-sm font-medium text-muted-foreground mb-1">
+            <label
+              className="block text-sm font-medium text-muted-foreground mb-2"
+              htmlFor="password"
+            >
               Password
             </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter a strong password"
-              required
-              className="w-full px-4 py-2 bg-muted border border-border rounded-lg"
-            />
+            <div className="relative">
+              <input
+                id="password"
+                // Conditional type based on showPassword state
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter a strong password"
+                required
+                className="w-full px-4 py-2.5 bg-muted border border-border rounded-lg pr-12 focus:ring-2 focus:ring-primary focus:border-primary transition duration-150 ease-in-out"
+              />
+              {/* Show/Hide Button */}
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
           </div>
+
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full px-4 py-3 font-semibold text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50"
+            className="w-full px-4 py-3 mt-2 font-bold text-lg text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50 transition duration-150 ease-in-out"
           >
-            {isLoading ? "Creating..." : "Create User"}
+            {isLoading ? "Creating User..." : "Create User"}
           </button>
         </form>
 
-        {error && <p className="text-red-500 mt-4 text-sm">{error}</p>}
+        {/* ERROR MESSAGE */}
+        {error && (
+          <div className="mt-6 p-3 bg-red-900/50 border border-red-700 rounded-lg">
+            <p className="text-red-300 font-medium text-sm">Error: {error}</p>
+          </div>
+        )}
 
+        {/* SUCCESS MESSAGE */}
         {successData && (
-          <div className="mt-6 p-4 bg-green-900/50 border border-green-700 rounded-lg space-y-2">
-            <h3 className="font-semibold text-green-300">
-              User Created Successfully!
+          <div className="mt-8 p-5 bg-green-900/50 border border-green-700 rounded-xl space-y-3">
+            <h3 className="font-extrabold text-green-300 text-xl flex items-center gap-2">
+              <Check size={20} /> User Created Successfully!
             </h3>
-            <p className="text-sm text-foreground">
-              ID: <span className="font-mono">{successData.user.id}</span>
-            </p>
-            <p className="text-sm text-foreground">
-              Username:{" "}
-              <span className="font-semibold">{successData.user.username}</span>
-            </p>
-            <div className="flex items-center gap-2">
-              <p className="text-sm text-foreground">Password:</p>
-              <span className="font-mono bg-muted px-2 py-1 rounded">
+            <div className="grid grid-cols-2 gap-y-1 gap-x-4 text-sm text-foreground">
+              <p>
+                <span className="font-semibold text-green-200">ID:</span>
+                <span className="font-mono ml-2">{successData.user.id}</span>
+              </p>
+              <p>
+                <span className="font-semibold text-green-200">Username:</span>
+                <span className="font-mono ml-2">
+                  {successData.user.username}
+                </span>
+              </p>
+              {/* Assuming AdminViewUser includes full_name */}
+              {(successData.user as any).full_name && (
+                <p className="col-span-2">
+                  <span className="font-semibold text-green-200">
+                    Full Name:
+                  </span>
+                  <span className="font-semibold ml-2">
+                    {(successData.user as any).full_name}
+                  </span>
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center gap-4 pt-2 border-t border-green-700/50 mt-3">
+              <p className="font-semibold text-green-200 text-sm">
+                Initial Password:
+              </p>
+              <span className="font-mono bg-green-800/50 px-3 py-1 rounded text-sm text-white">
                 {successData.pass}
               </span>
               <button
                 onClick={handleCopy}
-                className="p-1 text-muted-foreground hover:text-foreground"
+                className="p-1 rounded transition duration-150 ease-in-out text-green-400 hover:bg-green-700/50"
+                aria-label="Copy password to clipboard"
               >
                 {isCopied ? (
-                  <Check size={16} className="text-green-400" />
+                  <Check size={18} className="text-green-300" />
                 ) : (
-                  <Copy size={16} />
+                  <Copy size={18} />
                 )}
               </button>
             </div>
           </div>
         )}
       </div>
-      <div className="mt-8">
-        <h3 className="text-lg font-semibold mb-4">Existing Users</h3>
+
+      {/* EXISTING USERS TABLE */}
+      <div className="pt-4">
+        <h3 className="text-2xl font-bold mb-4 border-b pb-2 text-foreground">
+          Existing Users
+        </h3>
         <InteractiveUserTable
           users={allUsers}
           onUserSelect={() => {}}

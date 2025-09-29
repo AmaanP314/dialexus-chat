@@ -1,3 +1,42 @@
+// import React from "react";
+// import { Conversation } from "./types";
+// import ConversationItem from "./ConversationItem";
+
+// interface ConversationListProps {
+//   conversations: Conversation[];
+//   onConversationSelect: (conversation: Conversation) => void;
+//   selectedConversationId?: number | null;
+// }
+
+// const ConversationList: React.FC<ConversationListProps> = ({
+//   conversations,
+//   onConversationSelect,
+//   selectedConversationId,
+// }) => {
+//   if (!conversations) {
+//     return (
+//       <div className="p-4 text-center text-muted-foreground">Loading...</div>
+//     );
+//   }
+
+//   return (
+//     <div className="flex-grow overflow-y-auto">
+//       {conversations.map((convo) => (
+//         <ConversationItem
+//           key={convo.id}
+//           conversation={convo}
+//           isSelected={selectedConversationId === convo.id}
+//           onClick={() => onConversationSelect(convo)}
+//         />
+//       ))}
+//     </div>
+//   );
+// };
+
+// export default ConversationList;
+
+// chat-frontend/src/components/ConversationList.tsx
+
 import React from "react";
 import { Conversation } from "./types";
 import ConversationItem from "./ConversationItem";
@@ -5,13 +44,13 @@ import ConversationItem from "./ConversationItem";
 interface ConversationListProps {
   conversations: Conversation[];
   onConversationSelect: (conversation: Conversation) => void;
-  selectedConversationId?: number | null;
+  selectedConversation: Conversation | null;
 }
 
 const ConversationList: React.FC<ConversationListProps> = ({
   conversations,
   onConversationSelect,
-  selectedConversationId,
+  selectedConversation,
 }) => {
   if (!conversations) {
     return (
@@ -23,9 +62,12 @@ const ConversationList: React.FC<ConversationListProps> = ({
     <div className="flex-grow overflow-y-auto">
       {conversations.map((convo) => (
         <ConversationItem
-          key={convo.id}
+          key={`${convo.type}-${convo.id}`}
           conversation={convo}
-          isSelected={selectedConversationId === convo.id}
+          isSelected={
+            selectedConversation?.id === convo.id &&
+            selectedConversation?.type === convo.type
+          }
           onClick={() => onConversationSelect(convo)}
         />
       ))}

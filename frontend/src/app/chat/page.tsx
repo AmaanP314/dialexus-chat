@@ -22,10 +22,17 @@ export default function ChatPage() {
   );
   const [selectedConversation, setSelectedConversation] =
     useState<Conversation | null>(null);
+  // const [conversationsCache, setConversationsCache] = useState<
+  //   Map<number, ConversationCache>
+  // >(new Map());
   const [conversationsCache, setConversationsCache] = useState<
-    Map<number, ConversationCache>
+    Map<string, ConversationCache>
   >(new Map());
-  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+
+  // const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [isLoadingMessages, setIsLoadingMessages] = useState<
+    Map<string, boolean>
+  >(new Map());
 
   useEffect(() => {
     if (user) {
@@ -35,15 +42,79 @@ export default function ChatPage() {
     }
   }, [user]);
 
+  const getCompositeKey = (conversation: {
+    type: string;
+    id: number;
+  }): string => {
+    return `${conversation.type}-${conversation.id}`;
+  };
+
+  // const handleRealtimeMessage = useCallback(
+  //   (msg: RealtimeMessage) => {
+  //     let conversationId: number;
+
+  //     if (msg.type === "group") {
+  //       conversationId = msg.group!.id;
+  //     } else {
+  //       conversationId =
+  //         msg.sender.id === user?.id ? msg.receiver!.id : msg.sender.id;
+  //     }
+
+  //     setConversationsCache((prevCache) => {
+  //       const newCache = new Map(prevCache);
+  //       const existing = newCache.get(conversationId);
+  //       if (existing) {
+  //         newCache.set(conversationId, {
+  //           ...existing,
+  //           messages: [...existing.messages, msg as Message],
+  //         });
+  //       }
+  //       return newCache;
+  //     });
+
+  //     setConversationsList((prevList) => {
+  //       const existingConvoIndex = prevList.findIndex(
+  //         (c) => c.id === conversationId
+  //       );
+  //       let updatedList = [...prevList];
+
+  //       if (existingConvoIndex > -1) {
+  //         const existingConvo = updatedList[existingConvoIndex];
+  //         existingConvo.last_message = msg.content.text || "[attachment]";
+  //         existingConvo.timestamp = msg.timestamp;
+  //         updatedList.splice(existingConvoIndex, 1);
+  //         updatedList.unshift(existingConvo);
+  //       } else {
+  //         const newConvo: Conversation = {
+  //           id: msg.type === "group" ? msg.group!.id : msg.sender.id,
+  //           name: msg.type === "group" ? msg.group!.name : msg.sender.username,
+  //           type: msg.type === "group" ? "group" : msg.sender.role,
+  //           last_message: msg.content.text || "[attachment]",
+  //           timestamp: msg.timestamp,
+  //         };
+  //         updatedList.unshift(newConvo);
+  //       }
+  //       return updatedList;
+  //     });
+  //   },
+  //   [user?.id]
+  // );
+
   const handleRealtimeMessage = useCallback(
     (msg: RealtimeMessage) => {
-      let conversationId: number;
+      let conversationId: string;
+      let conversationType: "user" | "admin" | "group";
 
       if (msg.type === "group") {
-        conversationId = msg.group!.id;
+        conversationId = getCompositeKey({ type: "group", id: msg.group!.id });
+        conversationType = "group";
       } else {
-        conversationId =
-          msg.sender.id === user?.id ? msg.receiver!.id : msg.sender.id;
+        const partner = msg.sender.id === user?.id ? msg.receiver! : msg.sender;
+        conversationId = getCompositeKey({
+          type: partner.role,
+          id: partner.id,
+        });
+        conversationType = partner.role as "user" | "admin";
       }
 
       setConversationsCache((prevCache) => {
@@ -59,8 +130,17 @@ export default function ChatPage() {
       });
 
       setConversationsList((prevList) => {
+        const convoIdentifier =
+          conversationType === "group"
+            ? { id: msg.group!.id, type: "group" }
+            : {
+                id:
+                  msg.sender.id === user?.id ? msg.receiver!.id : msg.sender.id,
+                type: conversationType,
+              };
+
         const existingConvoIndex = prevList.findIndex(
-          (c) => c.id === conversationId
+          (c) => c.id === convoIdentifier.id && c.type === convoIdentifier.type
         );
         let updatedList = [...prevList];
 
@@ -72,9 +152,10 @@ export default function ChatPage() {
           updatedList.unshift(existingConvo);
         } else {
           const newConvo: Conversation = {
-            id: msg.type === "group" ? msg.group!.id : msg.sender.id,
+            id: convoIdentifier.id,
             name: msg.type === "group" ? msg.group!.name : msg.sender.username,
-            type: msg.type === "group" ? "group" : msg.sender.role,
+            full_name: null, // This can be populated if available
+            type: conversationType,
             last_message: msg.content.text || "[attachment]",
             timestamp: msg.timestamp,
           };
@@ -148,25 +229,59 @@ export default function ChatPage() {
     sendMessage(payload);
   };
 
-  const handleFetchMoreMessages = useCallback(async () => {
-    if (!selectedConversation || isLoadingMessages) return;
+  // const handleFetchMoreMessages = useCallback(async () => {
+  //   if (!selectedConversation || isLoadingMessages) return;
 
-    const cache = conversationsCache.get(selectedConversation.id);
+  //   const cache = conversationsCache.get(selectedConversation.id);
+  //   const nextCursor = cache?.nextCursor;
+
+  //   if (!nextCursor) return; // No more messages to load
+
+  //   setIsLoadingMessages(true);
+  //   try {
+  //     const response = await getMessages(selectedConversation, 10, nextCursor);
+  //     const newMessages = response.messages.reverse();
+
+  //     setConversationsCache((prevCache) => {
+  //       const newMap = new Map(prevCache);
+  //       const existingData = newMap.get(selectedConversation.id);
+  //       if (existingData) {
+  //         newMap.set(selectedConversation.id, {
+  //           messages: [...newMessages, ...existingData.messages], // Prepend older messages
+  //           nextCursor: response.next_cursor,
+  //         });
+  //       }
+  //       return newMap;
+  //     });
+  //   } catch (error) {
+  //     console.error("Failed to fetch more messages:", error);
+  //   } finally {
+  //     setIsLoadingMessages(false);
+  //   }
+  // }, [selectedConversation, conversationsCache, isLoadingMessages]);
+
+  // Update handleFetchMoreMessages
+  const handleFetchMoreMessages = useCallback(async () => {
+    if (!selectedConversation) return;
+    const compositeKey = getCompositeKey(selectedConversation);
+    if (isLoadingMessages.get(compositeKey)) return;
+
+    const cache = conversationsCache.get(compositeKey);
     const nextCursor = cache?.nextCursor;
 
-    if (!nextCursor) return; // No more messages to load
+    if (!nextCursor) return;
 
-    setIsLoadingMessages(true);
+    setIsLoadingMessages((prev) => new Map(prev).set(compositeKey, true));
     try {
       const response = await getMessages(selectedConversation, 10, nextCursor);
       const newMessages = response.messages.reverse();
 
       setConversationsCache((prevCache) => {
         const newMap = new Map(prevCache);
-        const existingData = newMap.get(selectedConversation.id);
+        const existingData = newMap.get(compositeKey);
         if (existingData) {
-          newMap.set(selectedConversation.id, {
-            messages: [...newMessages, ...existingData.messages], // Prepend older messages
+          newMap.set(compositeKey, {
+            messages: [...newMessages, ...existingData.messages],
             nextCursor: response.next_cursor,
           });
         }
@@ -175,34 +290,75 @@ export default function ChatPage() {
     } catch (error) {
       console.error("Failed to fetch more messages:", error);
     } finally {
-      setIsLoadingMessages(false);
+      setIsLoadingMessages((prev) => new Map(prev).set(compositeKey, false));
     }
   }, [selectedConversation, conversationsCache, isLoadingMessages]);
 
+  // const handleConversationSelect = useCallback(
+  //   async (conversation: Conversation) => {
+  //     if (selectedConversation?.id === conversation.id) return;
+  //     setSelectedConversation(conversation);
+  //     setConversationsList((prevList) => {
+  //       if (prevList.some((c) => c.id === conversation.id)) return prevList;
+  //       return [conversation, ...prevList];
+  //     });
+
+  //     if (!conversationsCache.has(conversation.id)) {
+  //       setIsLoadingMessages(true);
+  //       try {
+  //         const response = await getMessages(conversation);
+  //         const data = response.messages.reverse();
+  //         setConversationsCache((prevCache) => {
+  //           const newMap = new Map(prevCache);
+  //           newMap.set(conversation.id, {
+  //             messages: data,
+  //             nextCursor: response.next_cursor,
+  //           });
+  //           return newMap;
+  //         });
+  //       } finally {
+  //         setIsLoadingMessages(false);
+  //       }
+  //     }
+  //   },
+  //   [conversationsCache, selectedConversation]
+  // );
   const handleConversationSelect = useCallback(
     async (conversation: Conversation) => {
-      if (selectedConversation?.id === conversation.id) return;
+      const compositeKey = getCompositeKey(conversation);
+      if (
+        selectedConversation &&
+        getCompositeKey(selectedConversation) === compositeKey
+      )
+        return;
       setSelectedConversation(conversation);
       setConversationsList((prevList) => {
-        if (prevList.some((c) => c.id === conversation.id)) return prevList;
+        if (
+          prevList.some(
+            (c) => c.id === conversation.id && c.type === conversation.type
+          )
+        )
+          return prevList;
         return [conversation, ...prevList];
       });
 
-      if (!conversationsCache.has(conversation.id)) {
-        setIsLoadingMessages(true);
+      if (!conversationsCache.has(compositeKey)) {
+        setIsLoadingMessages((prev) => new Map(prev).set(compositeKey, true));
         try {
           const response = await getMessages(conversation);
           const data = response.messages.reverse();
           setConversationsCache((prevCache) => {
             const newMap = new Map(prevCache);
-            newMap.set(conversation.id, {
+            newMap.set(compositeKey, {
               messages: data,
               nextCursor: response.next_cursor,
             });
             return newMap;
           });
         } finally {
-          setIsLoadingMessages(false);
+          setIsLoadingMessages((prev) =>
+            new Map(prev).set(compositeKey, false)
+          );
         }
       }
     },
@@ -222,9 +378,9 @@ export default function ChatPage() {
       <Sidebar
         conversations={conversationsList}
         onConversationSelect={handleConversationSelect}
-        selectedConversationId={selectedConversation?.id}
+        selectedConversation={selectedConversation}
       />
-      {selectedConversation ? (
+      {/* {selectedConversation ? (
         <ChatWindow
           key={selectedConversation.id}
           conversation={selectedConversation}
@@ -232,6 +388,22 @@ export default function ChatPage() {
             conversationsCache.get(selectedConversation.id)?.messages || []
           }
           isLoading={isLoadingMessages}
+          onLoadMore={handleFetchMoreMessages}
+          onSendMessage={handleSendMessage}
+        />
+      ) : ( */}
+      {selectedConversation ? (
+        <ChatWindow
+          key={getCompositeKey(selectedConversation)}
+          conversation={selectedConversation}
+          messages={
+            conversationsCache.get(getCompositeKey(selectedConversation))
+              ?.messages || []
+          }
+          isLoading={
+            isLoadingMessages.get(getCompositeKey(selectedConversation)) ||
+            false
+          }
           onLoadMore={handleFetchMoreMessages}
           onSendMessage={handleSendMessage}
         />

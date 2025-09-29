@@ -191,7 +191,7 @@ def list_groups_with_members_for_admin(
     result = []
     for group in groups:
         members_info = [
-            {"user_id": member.user.id, "username": member.user.username}
+            {"user_id": member.user.id, "username": member.user.username, "full_name": member.user.full_name}
             for member in group.members
         ]
         result.append({
@@ -218,7 +218,7 @@ def list_active_groups_with_members(
     # ... (response formatting logic remains the same)
     result = []
     for group in groups:
-        members_info = [{"user_id": member.user.id, "username": member.user.username} for member in group.members]
+        members_info = [{"user_id": member.user.id, "username": member.user.username, "full_name": member.user.full_name} for member in group.members]
         result.append({"id": group.id, "name": group.name, "admin_id": group.admin_id, "is_active": group.is_active, "members": members_info})
     return result
 
@@ -237,7 +237,7 @@ def list_deactivated_groups_with_members(
     # ... (response formatting logic remains the same)
     result = []
     for group in groups:
-        members_info = [{"user_id": member.user.id, "username": member.user.username} for member in group.members]
+        members_info = [{"user_id": member.user.id, "username": member.user.username, "full_name": member.user.full_name} for member in group.members]
         result.append({"id": group.id, "name": group.name, "admin_id": group.admin_id, "is_active": group.is_active, "members": members_info})
     return result
 

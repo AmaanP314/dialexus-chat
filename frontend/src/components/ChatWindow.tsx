@@ -151,10 +151,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
           isOnline={presenceInfo?.status === "online"}
         />
         <div className="ml-4">
-          <h2 className="font-bold text-foreground">{conversation.name}</h2>
-          {/* <p className="text-xs text-muted-foreground capitalize">
-            {conversation.type} Chat
-          </p> */}
+          <h2 className="font-bold text-foreground">
+            {conversation.full_name || conversation.name}
+          </h2>
           <p className="text-xs text-muted-foreground">{getStatusText()}</p>
         </div>
         <div className="ml-auto">

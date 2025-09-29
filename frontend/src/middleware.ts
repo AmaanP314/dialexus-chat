@@ -91,6 +91,8 @@
 //   matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
 // };
 
+// chat-frontend/src/middleware.ts
+
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -105,7 +107,11 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 async function validateAndRefresh(
   request: NextRequest,
   cookieHeader: string
-): Promise<{ ok: boolean; response: Response | null }> {
+): Promise<{
+  ok: boolean;
+  response: Response | null;
+  newCookie?: string | null;
+}> {
   // 1. Initial check for user details
   let response = await fetch(`${API_BASE_URL}/users/me`, {
     headers: { cookie: cookieHeader },
@@ -122,18 +128,23 @@ async function validateAndRefresh(
       headers: { cookie: cookieHeader },
     });
 
-    // 3. If refresh was successful (usually a 204 No Content)
+    // 3. If refresh was successful
     if (refreshResponse.ok) {
+      // *** MODIFICATION START ***
+      // Capture the new 'Set-Cookie' header from the refresh response
+      const newCookie = refreshResponse.headers.get("Set-Cookie");
+      // *** MODIFICATION END ***
+
       // 4. Retry the original request
       const retryResponse = await fetch(`${API_BASE_URL}/users/me`, {
+        // Use the original cookie header for the retry, as the browser doesn't have the new one yet
         headers: { cookie: cookieHeader },
       });
 
       if (retryResponse.ok) {
         // Token was successfully refreshed and the request succeeded
-        // NOTE: The new access_token cookie is now set on the response header
-        // of the successful refresh and will be included in the client's next request.
-        return { ok: true, response: retryResponse };
+        // Return the successful response AND the new cookie to be set
+        return { ok: true, response: retryResponse, newCookie };
       }
     }
   }
@@ -155,54 +166,64 @@ export async function middleware(request: NextRequest) {
 
     // Only attempt validation if the user is hitting a protected or root path
     if (isProtected || pathname === "/") {
-      const { ok, response } = await validateAndRefresh(request, cookieHeader);
+      const { ok, response, newCookie } = await validateAndRefresh(
+        request,
+        cookieHeader
+      );
 
       if (ok && response) {
         // --- AUTHENTICATION SUCCESS ---
-
-        // Extract and propagate new cookie if refresh occurred
-        const setCookie = response.headers.get("Set-Cookie");
-        let finalResponse = NextResponse.next();
-
-        if (setCookie) {
-          finalResponse.headers.set("Set-Cookie", setCookie);
-        }
-
         const user = await response.json();
         const isAdmin = user.type === "admin" || user.type === "super_admin";
         const defaultPath = isAdmin ? "/dashboard" : "/chat";
+
+        let finalResponse: NextResponse;
 
         // If authenticated user hits / or /login, redirect to their default path
         if (
           pathname === "/" ||
           PUBLIC_ROUTES.some((path) => pathname.startsWith(path))
         ) {
-          return NextResponse.redirect(new URL(defaultPath, request.url));
+          finalResponse = NextResponse.redirect(
+            new URL(defaultPath, request.url)
+          );
+        }
+        // Role-based redirects for protected routes
+        else if (pathname.startsWith("/dashboard") && !isAdmin) {
+          finalResponse = NextResponse.redirect(new URL("/chat", request.url));
+        } else if (pathname.startsWith("/chat") && isAdmin) {
+          finalResponse = NextResponse.redirect(
+            new URL("/dashboard/chat", request.url)
+          );
+        } else {
+          finalResponse = NextResponse.next();
         }
 
-        // Role-based redirects for protected routes
-        if (pathname.startsWith("/dashboard") && !isAdmin) {
-          return NextResponse.redirect(new URL("/chat", request.url));
+        // *** MODIFICATION START ***
+        // If a new cookie was generated from the refresh, set it on the final response
+        if (newCookie) {
+          finalResponse.headers.set("Set-Cookie", newCookie);
         }
-        if (pathname.startsWith("/chat") && isAdmin) {
-          return NextResponse.redirect(new URL("/dashboard/chat", request.url));
-        }
+        // *** MODIFICATION END ***
 
         return finalResponse;
       } else {
         // --- AUTHENTICATION FAILURE (Expired or Invalid) ---
         // If validation/refresh failed on a protected/root path, redirect to login.
-        return NextResponse.redirect(new URL("/login", request.url));
+        // Create a redirect response to clear the cookie
+        const loginUrl = new URL("/login", request.url);
+        const response = NextResponse.redirect(loginUrl);
+        // Advise the browser to clear the cookie
+        response.headers.set(
+          "Set-Cookie",
+          "access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
+        );
+        return response;
       }
     }
-
-    // If hasAccessToken is true, but the user is hitting a public path (like an asset), let them proceed.
-    // This case only happens if the path is NOT in PROTECTED_ROUTES and is NOT '/'.
   }
 
   // --- 2. Handle Unauthenticated Users (No Token) ---
-
-  // If no access token AND path is protected or root, redirect to login
   if (
     !hasAccessToken &&
     (PROTECTED_ROUTES.some((path) => pathname.startsWith(path)) ||

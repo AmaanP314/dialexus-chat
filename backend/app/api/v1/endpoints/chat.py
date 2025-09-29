@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+from bson import ObjectId
 import pytz
 from typing import Union
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, Query, HTTPException, BackgroundTasks
@@ -31,15 +32,6 @@ async def broadcast_presence_update(tenant_id: int, user_id: int, role: str, sta
     
     await manager.broadcast_to_users(payload, list(broadcast_list))
 
-# --- Background task for database updates on disconnect ---
-# def update_last_seen(user_id: int, db: Session):
-#     try:
-#         user = db.query(User).filter(User.id == user_id).first()
-#         if user:
-#             user.last_seen = datetime.utcnow()
-#             db.commit()
-#     finally:
-#         db.close()
 def update_last_seen(entity_id: int, entity_role: str):
     """
     Synchronously updates the last_seen timestamp for a user or admin.
@@ -186,31 +178,6 @@ async def websocket_endpoint(
             event_type = message_data.get("event", "new_message")
             messages_collection = mongo_db["messages"]
 
-            # if event_type == "messages_read":
-                # partner = message_data.get("partner")
-                # if not partner: continue
-                
-                # messages_to_update = await messages_collection.find({
-                #     "receiver.id": entity.id, "receiver.role": token_data.role,
-                #     "sender.id": partner["id"], "sender.role": partner["role"],
-                #     "status": {"$in": ["sent", "received"]}
-                # }).to_list(length=None)
-
-                # if not messages_to_update: continue
-                
-                # msg_ids = [msg["_id"] for msg in messages_to_update]
-                # await messages_collection.update_many(
-                #     {"_id": {"$in": msg_ids}},
-                #     {"$set": {"status": "read"}}
-                # )
-                
-                # partner_connection_id = f"{partner['role']}-{partner['id']}"
-                # await manager.send_personal_message(json.dumps({
-                #     "event": "status_update",
-                #     "message_ids": [str(mid) for mid in msg_ids],
-                #     "status": "read"
-                # }), partner_connection_id)
-                # continue
             if event_type == "messages_read":
                 partner = message_data.get("partner")
                 group_id = message_data.get("group_id")
@@ -237,9 +204,6 @@ async def websocket_endpoint(
                     query_filter,
                     { "$addToSet": { "read_by": entity.id } }
                 )
-                
-                # Note: We no longer need to send a 'status_update' back.
-                # The frontend will know based on its own logic.
                 continue
             if event_type == "new_message":
                 raw_content = message_data.get("content")
@@ -247,14 +211,7 @@ async def websocket_endpoint(
                     content_obj = raw_content
                 else:
                     continue
-                # mongo_message = {
-                #     "type": message_data.get("type"),
-                #     "sender": {"id": entity.id, "role": token_data.role, "username": entity.username},
-                #     "content": content_obj,
-                #     "timestamp": datetime.now(pytz.utc),
-                #     "status": "sent",
-                #     "is_deleted": False
-                # }
+
                 mongo_message = {
                     "type": message_data.get("type"),
                     "sender": {"id": entity.id, "role": token_data.role, "username": entity.username},
@@ -298,19 +255,55 @@ async def websocket_endpoint(
                     connections.discard(connection_id_str)
                     await manager.broadcast_to_users(json.dumps(mongo_message, default=str), list(connections))
 
+            if event_type == "delete_message":
+                message_id = message_data.get("message_id")
+                if not message_id:
+                    continue
+
+                try:
+                    obj_id = ObjectId(message_id)
+                except Exception:
+                    print(f"Invalid message ID format: {message_id}")
+                    continue
+
+                # Security check: only the sender can delete
+                message_to_delete = await messages_collection.find_one({"_id": obj_id})
+                if not message_to_delete or message_to_delete["sender"]["id"] != entity.id:
+                    print(f"Security violation: User {entity.id} tried to delete message {message_id}")
+                    continue
+
+                # Perform the soft delete
+                await messages_collection.update_one(
+                    {"_id": obj_id},
+                    {"$set": {"is_deleted": True}}
+                )
+
+                # Notify participants
+                participants = []
+                if message_to_delete["type"] == "private":
+                    participants = [
+                        f"{message_to_delete['sender']['role']}-{message_to_delete['sender']['id']}",
+                        f"{message_to_delete['receiver']['role']}-{message_to_delete['receiver']['id']}",
+                    ]
+                elif message_to_delete["type"] == "group":
+                    group_id = message_to_delete["group"]["id"]
+                    participants = list(get_group_members(group_id, db=db))
+
+                delete_notification = json.dumps({
+                    "event": "message_deleted",
+                    "message_id": message_id
+                })
+                await manager.broadcast_to_users(delete_notification, participants)
+
+                print(f"Message {message_id} successfully marked as deleted.")
+                continue
+            
     except WebSocketDisconnect:
         manager.disconnect(connection_id_str)
         await broadcast_presence_update(tenant_id, entity.id, token_data.role, "offline", db)
         update_last_seen(entity.id, token_data.role)
-        # if isinstance(entity, User):
-        #     # Create a new session for the background task
-        #     db_session_for_task = next(get_db())
-        #     background_tasks.add_task(update_last_seen, entity.id, db_session_for_task)
     except Exception as e:
         print(f"Error in WebSocket: {e}")
         manager.disconnect(connection_id_str)
         await broadcast_presence_update(tenant_id, entity.id, token_data.role, "offline", db)
         update_last_seen(entity.id, token_data.role)
-        # if isinstance(entity, User):
-        #     db_session_for_task = next(get_db())
-        #     background_tasks.add_task(update_last_seen, entity.id, db_session_for_task)

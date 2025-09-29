@@ -2,6 +2,7 @@
 export interface CurrentUser {
   id: number;
   username: string;
+  full_name: string | null;
   type: "user" | "admin" | "super_admin";
   created_at: string;
   admin_key?: string; // Only for admins
@@ -11,12 +12,14 @@ export interface CurrentUser {
 export interface SearchResultUser {
   id: number;
   username: string;
+  full_name: string | null;
   type: "User";
 }
 
 export interface SearchResultAdmin {
   id: number;
   username: string;
+  full_name: string | null;
   type: "Admin";
   admin_key: string;
 }
@@ -37,6 +40,7 @@ export interface SearchResults {
 export interface Conversation {
   id: number;
   name: string;
+  full_name: string | null;
   type: "user" | "admin" | "group";
   last_message: string;
   timestamp: string;
@@ -102,6 +106,7 @@ export interface RealtimeMessage extends Omit<Message, "status"> {
 export interface AdminViewUser {
   id: number;
   username: string;
+  full_name: string | null;
   type: "User"; // Assuming it's always 'User' in this context
 }
 
@@ -109,6 +114,7 @@ export interface AdminViewUser {
 export interface GroupMember {
   user_id: number;
   username: string;
+  full_name: string | null;
 }
 
 export interface AdminViewGroup {

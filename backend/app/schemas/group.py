@@ -4,6 +4,7 @@ from typing import List, Optional
 class GroupMemberInfo(BaseModel):
     user_id: int
     username: str
+    full_name: Optional[str] = None
 
 class GroupWithMembers(BaseModel):
     id: int

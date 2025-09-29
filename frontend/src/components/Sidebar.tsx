@@ -27,13 +27,13 @@ const useDebounce = (value: string, delay: number) => {
 interface SidebarProps {
   conversations: Conversation[];
   onConversationSelect: (conversation: Conversation) => void;
-  selectedConversationId?: number | null;
+  selectedConversation: Conversation | null;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
   conversations,
   onConversationSelect,
-  selectedConversationId,
+  selectedConversation,
 }) => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResults | null>(null);
@@ -66,6 +66,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     const conversation: Conversation = {
       id: item.id,
       name: "name" in item ? item.name : item.username,
+      full_name: "full_name" in item ? item.full_name : null,
       type: conversationType,
       last_message: `Start a conversation with ${
         "name" in item ? item.name : item.username
@@ -108,7 +109,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                 {results.users.map((u) => (
                   <SearchResultItem
                     key={`user-${u.id}`}
-                    name={u.username}
+                    // name={u.username}
+                    name={u.full_name || u.username}
                     type="User"
                     onClick={() => handleSearchSelect(u)}
                   />
@@ -116,7 +118,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                 {results.admins.map((a) => (
                   <SearchResultItem
                     key={`admin-${a.id}`}
-                    name={a.username}
+                    // name={a.username}
+                    name={a.full_name || a.username}
                     type="Admin"
                     onClick={() => handleSearchSelect(a)}
                   />
@@ -136,7 +139,8 @@ const Sidebar: React.FC<SidebarProps> = ({
           <ConversationList
             conversations={conversations}
             onConversationSelect={onConversationSelect}
-            selectedConversationId={selectedConversationId}
+            // selectedConversationId={selectedConversationId}
+            selectedConversation={selectedConversation}
           />
         )}
       </div>
