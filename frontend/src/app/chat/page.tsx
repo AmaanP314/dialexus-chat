@@ -12,10 +12,13 @@ import {
 } from "@/components/types";
 import { MessageSquareText } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useSocket } from "@/context/SocketContext";
 import { getMessages, getConversations } from "@/lib/api";
 
 export default function ChatPage() {
-  const { user, lastEvent, sendMessage, isLoading: isAuthLoading } = useAuth();
+  // const { user, lastEvent, sendMessage, isLoading: isAuthLoading } = useAuth();
+  const { user, isLoading: isAuthLoading } = useAuth();
+  const { lastEvent, sendMessage } = useSocket();
 
   const [conversationsList, setConversationsList] = useState<Conversation[]>(
     []
