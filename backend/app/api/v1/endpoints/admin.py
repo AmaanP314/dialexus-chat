@@ -407,6 +407,16 @@ async def get_user_to_user_message_history(
 
     for msg in messages:
         msg["_id"] = str(msg["_id"])
+        receiver_identity = {
+            "id": msg["receiver"]["id"],
+            "role": msg["receiver"]["role"]
+        }
+        
+        # Check if the receiver's identity object is in the read_by array
+        if receiver_identity in msg.get("read_by", []):
+            msg["status"] = "read"
+        else:
+            msg["status"] = "sent"
 
     next_cursor = None
     if len(messages) == limit:

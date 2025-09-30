@@ -102,6 +102,10 @@ from bson import ObjectId
 # run it through the BeforeValidator, which converts the ObjectId.
 PyObjectId = Annotated[str, BeforeValidator(str)]
 
+class ReadReceipt(BaseModel):
+    id: int
+    role: str
+
 # Internal models for sender/receiver/group
 class MessageParticipant(BaseModel):
     id: int
@@ -128,7 +132,7 @@ class MessageOut(BaseModel):
     content: MessageContent
     timestamp: datetime.datetime
     is_deleted: bool = False
-    read_by: Optional[List[int]] = None
+    read_by: Optional[List[ReadReceipt]] = []
     status: str 
 
     class Config:

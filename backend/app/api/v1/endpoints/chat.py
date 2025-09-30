@@ -178,33 +178,89 @@ async def websocket_endpoint(
             event_type = message_data.get("event", "new_message")
             messages_collection = mongo_db["messages"]
 
+            # if event_type == "messages_read":
+            #     partner = message_data.get("partner")
+            #     group_id = message_data.get("group_id")
+
+            #     if not (partner or group_id):
+            #         continue
+
+            #     query_filter = { "read_by": { "$ne": entity.id } }
+            #     if partner:
+            #         query_filter.update({
+            #             "type": "private",
+            #             "sender.id": partner["id"],
+            #             "sender.role": partner["role"],
+            #             "receiver.id": entity.id,
+            #             "receiver.role": token_data.role
+            #         })
+            #     elif group_id:
+            #         query_filter.update({
+            #             "type": "group",
+            #             "group.id": group_id
+            #         })
+
+            #     await messages_collection.update_many(
+            #         query_filter,
+            #         { "$addToSet": { "read_by": entity.id } }
+            #     )
+            #     continue
             if event_type == "messages_read":
-                partner = message_data.get("partner")
-                group_id = message_data.get("group_id")
+                partner_data = message_data.get("partner")
+                group_id_data = message_data.get("group_id")
+                
+                reader_identity = {"id": entity.id, "role": token_data.role}
+                
+                query = {}
+                message_sender = None
 
-                if not (partner or group_id):
-                    continue
-
-                query_filter = { "read_by": { "$ne": entity.id } }
-                if partner:
-                    query_filter.update({
+                if partner_data: # Private chat read receipt
+                    # Find messages where the reader is the receiver and has not read them yet.
+                    query = {
                         "type": "private",
-                        "sender.id": partner["id"],
-                        "sender.role": partner["role"],
-                        "receiver.id": entity.id,
-                        "receiver.role": token_data.role
-                    })
-                elif group_id:
-                    query_filter.update({
-                        "type": "group",
-                        "group.id": group_id
-                    })
+                        "sender.id": partner_data["id"], "sender.role": partner_data["role"],
+                        "receiver.id": entity.id, "receiver.role": token_data.role,
+                        "read_by": {"$not": {"$elemMatch": reader_identity}}
+                    }
+                    message_sender = partner_data
 
-                await messages_collection.update_many(
-                    query_filter,
-                    { "$addToSet": { "read_by": entity.id } }
-                )
-                continue
+                elif group_id_data: # Group chat read receipt
+                    # Find messages in the group that the reader has not read yet.
+                    query = {
+                        "type": "group",
+                        "group.id": group_id_data,
+                        "read_by": {"$not": {"$elemMatch": reader_identity}}
+                    }
+                    # For groups, we don't notify a single sender, but this could be enhanced later.
+                
+                if query:
+                    # Use $addToSet to add the reader's identity to the array, preventing duplicates.
+                    update_result = await messages_collection.update_many(
+                        query,
+                        {"$addToSet": {"read_by": reader_identity}}
+                    )
+                    updated_count = update_result.modified_count
+                    print(f"User {entity.id} read {updated_count} messages.")
+
+                    # --- INSTRUCTION 3: Send the new 'messages_now_read' event ---
+                    if updated_count > 0 and message_sender:
+                        sender_connection_id = f"{message_sender['role']}-{message_sender['id']}"
+                        
+                        # The conversation_id from the sender's perspective is the reader's ID
+                        # conversation_id = f"{token_data.role}-{entity.id}"
+
+                        # read_notification = json.dumps({
+                        #     "event": "messages_status_update",
+                        #     "conversation_id": conversation_id,
+                        #     "reader": reader_identity # Send the identity of the user who just read the messages
+                        # })
+                        read_notification = json.dumps({
+                            "event": "messages_status_update",
+                            "reader": reader_identity
+                        })
+                        await manager.send_personal_message(read_notification, sender_connection_id)
+
+
             if event_type == "new_message":
                 raw_content = message_data.get("content")
                 if isinstance(raw_content, dict):
@@ -218,9 +274,10 @@ async def websocket_endpoint(
                     "content": content_obj,
                     "timestamp": datetime.now(pytz.timezone('Asia/Kolkata')),
                     "read_by": [entity.id], 
-                    "status": "sent",
+                    # "status": "sent",
                     "is_deleted": False
                 }
+                mongo_message["read_by"] = [{"id": entity.id, "role": token_data.role}]
 
                 if mongo_message["type"] == "private":
                     receiver_info = message_data.get("receiver")
