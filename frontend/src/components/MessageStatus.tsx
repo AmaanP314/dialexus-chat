@@ -21,9 +21,16 @@ const MessageStatus: React.FC<MessageStatusProps> = ({ status }) => {
         />
       );
     case "received":
-      return <CheckCheck size={iconSize} className={className} />;
+      return (
+        <CheckCheck
+          size={iconSize}
+          className={`${className} text-bubble-received`}
+        />
+      );
     case "sent":
-      return <Check size={iconSize} className={className} />;
+      return (
+        <Check size={iconSize} className={`${className} text-status-sent`} />
+      );
     default:
       return null;
   }

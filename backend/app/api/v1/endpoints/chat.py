@@ -178,33 +178,6 @@ async def websocket_endpoint(
             event_type = message_data.get("event", "new_message")
             messages_collection = mongo_db["messages"]
 
-            # if event_type == "messages_read":
-            #     partner = message_data.get("partner")
-            #     group_id = message_data.get("group_id")
-
-            #     if not (partner or group_id):
-            #         continue
-
-            #     query_filter = { "read_by": { "$ne": entity.id } }
-            #     if partner:
-            #         query_filter.update({
-            #             "type": "private",
-            #             "sender.id": partner["id"],
-            #             "sender.role": partner["role"],
-            #             "receiver.id": entity.id,
-            #             "receiver.role": token_data.role
-            #         })
-            #     elif group_id:
-            #         query_filter.update({
-            #             "type": "group",
-            #             "group.id": group_id
-            #         })
-
-            #     await messages_collection.update_many(
-            #         query_filter,
-            #         { "$addToSet": { "read_by": entity.id } }
-            #     )
-            #     continue
             if event_type == "messages_read":
                 partner_data = message_data.get("partner")
                 group_id_data = message_data.get("group_id")
@@ -240,20 +213,12 @@ async def websocket_endpoint(
                         {"$addToSet": {"read_by": reader_identity}}
                     )
                     updated_count = update_result.modified_count
-                    print(f"User {entity.id} read {updated_count} messages.")
+                    print(f"{token_data.role} {entity.id} read {updated_count} messages.")
 
                     # --- INSTRUCTION 3: Send the new 'messages_now_read' event ---
                     if updated_count > 0 and message_sender:
                         sender_connection_id = f"{message_sender['role']}-{message_sender['id']}"
                         
-                        # The conversation_id from the sender's perspective is the reader's ID
-                        # conversation_id = f"{token_data.role}-{entity.id}"
-
-                        # read_notification = json.dumps({
-                        #     "event": "messages_status_update",
-                        #     "conversation_id": conversation_id,
-                        #     "reader": reader_identity # Send the identity of the user who just read the messages
-                        # })
                         read_notification = json.dumps({
                             "event": "messages_status_update",
                             "reader": reader_identity
@@ -291,7 +256,7 @@ async def websocket_endpoint(
                     
                     result = await messages_collection.insert_one(mongo_message)
                     mongo_message["_id"] = str(result.inserted_id)
-                    
+                    mongo_message["event"] = "new_message"
                     receiver_connection_id = f"{receiver_info['role']}-{receiver_info['id']}"
                     await manager.broadcast_to_users(json.dumps(mongo_message, default=str), [receiver_connection_id])
 
@@ -306,7 +271,7 @@ async def websocket_endpoint(
 
                     result = await messages_collection.insert_one(mongo_message)
                     mongo_message["_id"] = str(result.inserted_id)
-
+                    mongo_message["event"] = "new_message"
                     member_ids = get_group_members(group_info["id"], db=db)
                     connections = set(member_ids)
                     connections.discard(connection_id_str)

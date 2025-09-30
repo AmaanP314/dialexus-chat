@@ -26,6 +26,8 @@ const config: Config = {
         // Specific colors for chat bubbles
         "bubble-sent": "hsl(var(--bubble-sent))",
         "bubble-received": "hsl(var(--bubble-received))",
+        "status-read": "hsl(var(--status-read))",
+        "status-sent": "hsl(var(--status-sent))",
       },
       borderRadius: {
         lg: `var(--radius)`,

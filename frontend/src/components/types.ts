@@ -151,3 +151,25 @@ export interface ConversationPair {
   last_message_timestamp: string;
   message_count: number;
 }
+
+// For /api/v1/notifications/summary endpoint
+export interface ConversationDetails {
+  id: number;
+  name: string;
+  type: "user" | "admin" | "group";
+}
+
+export interface LastMessage {
+  preview: string;
+  timestamp: string;
+}
+
+export interface NotificationItem {
+  conversation_details: ConversationDetails;
+  last_message: LastMessage;
+  unread_count: number;
+}
+
+export interface NotificationSummaryResponse {
+  notifications: NotificationItem[];
+}

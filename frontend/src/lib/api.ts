@@ -8,6 +8,7 @@ import {
   AdminViewGroup,
   CreatedGroup,
   ConversationPair,
+  NotificationSummaryResponse,
 } from "@/components/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -37,21 +38,6 @@ const apiFetch = async (
   }
   return response;
 };
-
-// export const loginUser = async ({
-//   username,
-//   password,
-// }: {
-//   username: string;
-//   password: string;
-// }): Promise<Response> => {
-//   return fetch(`${API_BASE_URL}/auth/login`, {
-//     method: "POST",
-//     headers: { "Content-Type": "application/json" },
-//     body: JSON.stringify({ username, password }),
-//     credentials: "include",
-//   });
-// };
 
 export const loginUser = async ({
   username,
@@ -87,7 +73,7 @@ export const getConversations = async (): Promise<ConversationsResponse> => {
 // --- CORRECTED: No longer needs a token parameter ---
 export const getMessages = async (
   conversation: Conversation,
-  limit: number = 15,
+  limit: number = 50,
   before: string | null = null
 ): Promise<MessagesResponse> => {
   const conversationType = conversation.type === "group" ? "group" : "private";
@@ -272,3 +258,10 @@ export const getAdminUserToUserMessages = async (
   if (!response.ok) throw new Error("Failed to fetch user-to-user messages.");
   return response.json();
 };
+
+export const getNotificationSummary =
+  async (): Promise<NotificationSummaryResponse> => {
+    const response = await apiFetch("/notifications/summary");
+    if (!response.ok) throw new Error("Failed to fetch notification summary.");
+    return response.json();
+  };

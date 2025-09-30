@@ -1,32 +1,7 @@
-// import { AuthProvider } from "@/context/AuthContext";
-// import { PresenceProvider } from "@/context/PresenceContext"; // Import new provider
-// import "./globals.css";
-
-// export default function RootLayout({
-//   children,
-// }: {
-//   children: React.ReactNode;
-// }) {
-//   return (
-//     <html lang="en" className="dark">
-//       <body>
-//         <AuthProvider>
-//           <PresenceProvider>
-//             {" "}
-//             {/* Wrap AuthProvider's children */}
-//             {children}
-//           </PresenceProvider>
-//         </AuthProvider>
-//       </body>
-//     </html>
-//   );
-// }
-
-// src/app/layout.tsx
-
 import { AuthProvider } from "@/context/AuthContext";
-import { SocketProvider } from "@/context/SocketContext"; // Import new provider
+import { SocketProvider } from "@/context/SocketContext";
 import { PresenceProvider } from "@/context/PresenceContext";
+import { NotificationProvider } from "@/context/NotificationContext";
 import "./globals.css";
 
 export default function RootLayout({
@@ -40,8 +15,9 @@ export default function RootLayout({
         <AuthProvider>
           <SocketProvider>
             {" "}
-            {/* Wrap PresenceProvider */}
-            <PresenceProvider>{children}</PresenceProvider>
+            <PresenceProvider>
+              <NotificationProvider>{children}</NotificationProvider>
+            </PresenceProvider>
           </SocketProvider>
         </AuthProvider>
       </body>

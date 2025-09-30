@@ -13,26 +13,24 @@ import {
 import { MessageSquareText } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useSocket } from "@/context/SocketContext";
+import { useNotification } from "@/context/NotificationContext";
 import { getMessages, getConversations } from "@/lib/api";
 
 export default function ChatPage() {
   // const { user, lastEvent, sendMessage, isLoading: isAuthLoading } = useAuth();
   const { user, isLoading: isAuthLoading } = useAuth();
   const { lastEvent, sendMessage } = useSocket();
+  const { setActiveChatId, clearUnreadCount, unreadCounts } = useNotification();
 
   const [conversationsList, setConversationsList] = useState<Conversation[]>(
     []
   );
   const [selectedConversation, setSelectedConversation] =
     useState<Conversation | null>(null);
-  // const [conversationsCache, setConversationsCache] = useState<
-  //   Map<number, ConversationCache>
-  // >(new Map());
   const [conversationsCache, setConversationsCache] = useState<
     Map<string, ConversationCache>
   >(new Map());
 
-  // const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState<
     Map<string, boolean>
   >(new Map());
@@ -51,57 +49,6 @@ export default function ChatPage() {
   }): string => {
     return `${conversation.type}-${conversation.id}`;
   };
-
-  // const handleRealtimeMessage = useCallback(
-  //   (msg: RealtimeMessage) => {
-  //     let conversationId: number;
-
-  //     if (msg.type === "group") {
-  //       conversationId = msg.group!.id;
-  //     } else {
-  //       conversationId =
-  //         msg.sender.id === user?.id ? msg.receiver!.id : msg.sender.id;
-  //     }
-
-  //     setConversationsCache((prevCache) => {
-  //       const newCache = new Map(prevCache);
-  //       const existing = newCache.get(conversationId);
-  //       if (existing) {
-  //         newCache.set(conversationId, {
-  //           ...existing,
-  //           messages: [...existing.messages, msg as Message],
-  //         });
-  //       }
-  //       return newCache;
-  //     });
-
-  //     setConversationsList((prevList) => {
-  //       const existingConvoIndex = prevList.findIndex(
-  //         (c) => c.id === conversationId
-  //       );
-  //       let updatedList = [...prevList];
-
-  //       if (existingConvoIndex > -1) {
-  //         const existingConvo = updatedList[existingConvoIndex];
-  //         existingConvo.last_message = msg.content.text || "[attachment]";
-  //         existingConvo.timestamp = msg.timestamp;
-  //         updatedList.splice(existingConvoIndex, 1);
-  //         updatedList.unshift(existingConvo);
-  //       } else {
-  //         const newConvo: Conversation = {
-  //           id: msg.type === "group" ? msg.group!.id : msg.sender.id,
-  //           name: msg.type === "group" ? msg.group!.name : msg.sender.username,
-  //           type: msg.type === "group" ? "group" : msg.sender.role,
-  //           last_message: msg.content.text || "[attachment]",
-  //           timestamp: msg.timestamp,
-  //         };
-  //         updatedList.unshift(newConvo);
-  //       }
-  //       return updatedList;
-  //     });
-  //   },
-  //   [user?.id]
-  // );
 
   const handleRealtimeMessage = useCallback(
     (msg: RealtimeMessage) => {
@@ -171,12 +118,47 @@ export default function ChatPage() {
   );
 
   useEffect(() => {
-    if (lastEvent) {
-      if (lastEvent.type === "private" || lastEvent.type === "group") {
-        handleRealtimeMessage(lastEvent);
-      }
+    if (!lastEvent || !user) return;
+
+    // --- HANDLE NEW MESSAGES ---
+    if (
+      lastEvent.event === "new_message" &&
+      (lastEvent.type === "private" || lastEvent.type === "group")
+    ) {
+      handleRealtimeMessage(lastEvent);
     }
-  }, [lastEvent, handleRealtimeMessage]);
+
+    // --- HANDLE READ RECEIPTS ---
+    if (lastEvent.event === "messages_status_update") {
+      const { reader } = lastEvent;
+      if (!reader) return;
+
+      // Construct the key for the conversation that was read
+      const compositeKey = `${reader.role}-${reader.id}`;
+
+      setConversationsCache((prevCache) => {
+        const newCache = new Map(prevCache);
+        const conversationData = newCache.get(compositeKey);
+
+        // Only update if we have the conversation's messages loaded
+        if (conversationData) {
+          const updatedMessages = conversationData.messages.map((msg) => {
+            // If the message was sent by the current user, update its status to 'read'
+            if (msg.sender.id === user.id) {
+              return { ...msg, status: "read" as const };
+            }
+            return msg;
+          });
+
+          newCache.set(compositeKey, {
+            ...conversationData,
+            messages: updatedMessages,
+          });
+        }
+        return newCache;
+      });
+    }
+  }, [lastEvent, user, handleRealtimeMessage]);
 
   const handleSendMessage = (content: MessageContent) => {
     if (!selectedConversation || !user) return;
@@ -232,37 +214,6 @@ export default function ChatPage() {
     sendMessage(payload);
   };
 
-  // const handleFetchMoreMessages = useCallback(async () => {
-  //   if (!selectedConversation || isLoadingMessages) return;
-
-  //   const cache = conversationsCache.get(selectedConversation.id);
-  //   const nextCursor = cache?.nextCursor;
-
-  //   if (!nextCursor) return; // No more messages to load
-
-  //   setIsLoadingMessages(true);
-  //   try {
-  //     const response = await getMessages(selectedConversation, 10, nextCursor);
-  //     const newMessages = response.messages.reverse();
-
-  //     setConversationsCache((prevCache) => {
-  //       const newMap = new Map(prevCache);
-  //       const existingData = newMap.get(selectedConversation.id);
-  //       if (existingData) {
-  //         newMap.set(selectedConversation.id, {
-  //           messages: [...newMessages, ...existingData.messages], // Prepend older messages
-  //           nextCursor: response.next_cursor,
-  //         });
-  //       }
-  //       return newMap;
-  //     });
-  //   } catch (error) {
-  //     console.error("Failed to fetch more messages:", error);
-  //   } finally {
-  //     setIsLoadingMessages(false);
-  //   }
-  // }, [selectedConversation, conversationsCache, isLoadingMessages]);
-
   // Update handleFetchMoreMessages
   const handleFetchMoreMessages = useCallback(async () => {
     if (!selectedConversation) return;
@@ -297,35 +248,6 @@ export default function ChatPage() {
     }
   }, [selectedConversation, conversationsCache, isLoadingMessages]);
 
-  // const handleConversationSelect = useCallback(
-  //   async (conversation: Conversation) => {
-  //     if (selectedConversation?.id === conversation.id) return;
-  //     setSelectedConversation(conversation);
-  //     setConversationsList((prevList) => {
-  //       if (prevList.some((c) => c.id === conversation.id)) return prevList;
-  //       return [conversation, ...prevList];
-  //     });
-
-  //     if (!conversationsCache.has(conversation.id)) {
-  //       setIsLoadingMessages(true);
-  //       try {
-  //         const response = await getMessages(conversation);
-  //         const data = response.messages.reverse();
-  //         setConversationsCache((prevCache) => {
-  //           const newMap = new Map(prevCache);
-  //           newMap.set(conversation.id, {
-  //             messages: data,
-  //             nextCursor: response.next_cursor,
-  //           });
-  //           return newMap;
-  //         });
-  //       } finally {
-  //         setIsLoadingMessages(false);
-  //       }
-  //     }
-  //   },
-  //   [conversationsCache, selectedConversation]
-  // );
   const handleConversationSelect = useCallback(
     async (conversation: Conversation) => {
       const compositeKey = getCompositeKey(conversation);
@@ -334,7 +256,29 @@ export default function ChatPage() {
         getCompositeKey(selectedConversation) === compositeKey
       )
         return;
+
       setSelectedConversation(conversation);
+
+      // --- NOTIFICATION LOGIC ---
+      // 1. Set this conversation as the globally active one
+      setActiveChatId(compositeKey);
+      // 2. Clear its unread count in the global state
+      // clearUnreadCount(compositeKey);
+      // 3. Inform the server that messages have been read
+      if (unreadCounts.get(compositeKey)) {
+        clearUnreadCount(compositeKey);
+
+        if (conversation.type === "group") {
+          sendMessage({ event: "messages_read", group_id: conversation.id });
+        } else {
+          sendMessage({
+            event: "messages_read",
+            partner: { id: conversation.id, role: conversation.type },
+          });
+        }
+      }
+      // --- END NOTIFICATION LOGIC ---
+
       setConversationsList((prevList) => {
         if (
           prevList.some(
@@ -365,8 +309,21 @@ export default function ChatPage() {
         }
       }
     },
-    [conversationsCache, selectedConversation]
+    [
+      conversationsCache,
+      selectedConversation,
+      setActiveChatId,
+      clearUnreadCount,
+      sendMessage,
+      unreadCounts,
+    ]
   );
+
+  useEffect(() => {
+    return () => {
+      setActiveChatId(null);
+    };
+  }, [setActiveChatId]);
 
   if (isAuthLoading) {
     return (
@@ -383,18 +340,6 @@ export default function ChatPage() {
         onConversationSelect={handleConversationSelect}
         selectedConversation={selectedConversation}
       />
-      {/* {selectedConversation ? (
-        <ChatWindow
-          key={selectedConversation.id}
-          conversation={selectedConversation}
-          messages={
-            conversationsCache.get(selectedConversation.id)?.messages || []
-          }
-          isLoading={isLoadingMessages}
-          onLoadMore={handleFetchMoreMessages}
-          onSendMessage={handleSendMessage}
-        />
-      ) : ( */}
       {selectedConversation ? (
         <ChatWindow
           key={getCompositeKey(selectedConversation)}

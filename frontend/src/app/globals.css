@@ -24,7 +24,8 @@
     /* Chat Bubbles & Status */
     --bubble-sent: 142 76% 25%;
     --bubble-received: 240 3.7% 15.9%;
-    --status-read: 217 91% 60%;
+    --status-sent: 0 0% 60%;
+    --status-read: 200 100% 50%;
 
     /* Radius */
     --radius: 0.5rem;
