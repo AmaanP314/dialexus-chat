@@ -91,8 +91,6 @@
 //   matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
 // };
 
-// chat-frontend/src/middleware.ts
-
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -100,140 +98,161 @@ const PROTECTED_ROUTES = ["/chat", "/dashboard", "/explorer"];
 const PUBLIC_ROUTES = ["/login"];
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
-/**
- * Executes a fetch, and attempts to refresh the token and retry on a 401.
- * IMPORTANT: This logic is local to the middleware and does NOT use api.ts.
- */
-async function validateAndRefresh(
-  request: NextRequest,
-  cookieHeader: string
-): Promise<{
-  ok: boolean;
-  response: Response | null;
-  newCookie?: string | null;
-}> {
-  // 1. Initial check for user details
-  let response = await fetch(`${API_BASE_URL}/users/me`, {
-    headers: { cookie: cookieHeader },
-  });
+// Store refresh promises per cookie to prevent multiple simultaneous refresh attempts
+const refreshPromises = new Map<string, Promise<boolean>>();
 
-  if (response.ok) {
-    return { ok: true, response };
-  }
-
-  // 2. If 401, attempt token refresh
-  if (response.status === 401) {
+const refreshAccessToken = async (cookie: string): Promise<boolean> => {
+  try {
     const refreshResponse = await fetch(`${API_BASE_URL}/auth/refresh`, {
       method: "POST",
-      headers: { cookie: cookieHeader },
+      headers: {
+        cookie: cookie,
+      },
+      credentials: "include",
     });
 
-    // 3. If refresh was successful
-    if (refreshResponse.ok) {
-      // *** MODIFICATION START ***
-      // Capture the new 'Set-Cookie' header from the refresh response
-      const newCookie = refreshResponse.headers.get("Set-Cookie");
-      // *** MODIFICATION END ***
+    return refreshResponse.ok;
+  } catch (error) {
+    console.error("Token refresh failed:", error);
+    return false;
+  }
+};
 
-      // 4. Retry the original request
-      const retryResponse = await fetch(`${API_BASE_URL}/users/me`, {
-        // Use the original cookie header for the retry, as the browser doesn't have the new one yet
-        headers: { cookie: cookieHeader },
+const apiFetch = async (
+  url: string,
+  cookie: string,
+  options: RequestInit = {}
+): Promise<Response> => {
+  const response = await fetch(`${API_BASE_URL}${url}`, {
+    ...options,
+    headers: {
+      ...options.headers,
+      cookie: cookie,
+    },
+    credentials: "include",
+  });
+
+  // If we get 401, try to refresh the token
+  if (response.status === 401) {
+    // Check if there's already a refresh in progress for this cookie
+    let refreshPromise = refreshPromises.get(cookie);
+
+    if (!refreshPromise) {
+      // Create a new refresh promise
+      refreshPromise = refreshAccessToken(cookie);
+      refreshPromises.set(cookie, refreshPromise);
+
+      // Clean up the promise after it completes
+      refreshPromise.finally(() => {
+        refreshPromises.delete(cookie);
       });
+    }
 
-      if (retryResponse.ok) {
-        // Token was successfully refreshed and the request succeeded
-        // Return the successful response AND the new cookie to be set
-        return { ok: true, response: retryResponse, newCookie };
-      }
+    // Wait for the refresh to complete
+    const refreshSuccess = await refreshPromise;
+
+    if (refreshSuccess) {
+      // Retry the original request with the same cookie
+      // The Set-Cookie headers from refresh will be handled by the browser
+      return await fetch(`${API_BASE_URL}${url}`, {
+        ...options,
+        headers: {
+          ...options.headers,
+          cookie: cookie,
+        },
+        credentials: "include",
+      });
     }
   }
 
-  // Failed initial check and failed refresh
-  return { ok: false, response: null };
-}
+  return response;
+};
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const cookieHeader = request.headers.get("cookie") || "";
-  const hasAccessToken = cookieHeader && cookieHeader.includes("access_token");
+  const cookie = request.headers.get("cookie") || "";
+  const hasAccessToken = cookie.includes("access_token");
+  const hasRefreshToken = cookie.includes("refresh_token");
 
-  // --- 1. Attempt Authentication and Authorization (Token is present) ---
-  if (hasAccessToken) {
-    const isProtected = PROTECTED_ROUTES.some((path) =>
-      pathname.startsWith(path)
-    );
+  // If user has tokens (access or refresh), try to authenticate
+  if (hasAccessToken || hasRefreshToken) {
+    try {
+      const response = await apiFetch("/users/me", cookie);
 
-    // Only attempt validation if the user is hitting a protected or root path
-    if (isProtected || pathname === "/") {
-      const { ok, response, newCookie } = await validateAndRefresh(
-        request,
-        cookieHeader
-      );
-
-      if (ok && response) {
-        // --- AUTHENTICATION SUCCESS ---
+      if (response.ok) {
         const user = await response.json();
         const isAdmin = user.type === "admin" || user.type === "super_admin";
-        const defaultPath = isAdmin ? "/dashboard" : "/chat";
 
-        let finalResponse: NextResponse;
+        // Create a NextResponse to potentially set new cookies
+        let nextResponse: NextResponse;
 
-        // If authenticated user hits / or /login, redirect to their default path
-        if (
-          pathname === "/" ||
-          PUBLIC_ROUTES.some((path) => pathname.startsWith(path))
-        ) {
-          finalResponse = NextResponse.redirect(
-            new URL(defaultPath, request.url)
+        // If a logged-in user tries to access the login page, redirect them away
+        if (PUBLIC_ROUTES.some((path) => pathname.startsWith(path))) {
+          nextResponse = NextResponse.redirect(
+            new URL(isAdmin ? "/dashboard" : "/chat", request.url)
           );
         }
-        // Role-based redirects for protected routes
+        // If a regular user tries to access the dashboard, redirect to chat
         else if (pathname.startsWith("/dashboard") && !isAdmin) {
-          finalResponse = NextResponse.redirect(new URL("/chat", request.url));
-        } else if (pathname.startsWith("/chat") && isAdmin) {
-          finalResponse = NextResponse.redirect(
+          nextResponse = NextResponse.redirect(new URL("/chat", request.url));
+        }
+        // If admin tries to access /chat, redirect to /dashboard/chat
+        else if (pathname.startsWith("/chat") && isAdmin) {
+          nextResponse = NextResponse.redirect(
             new URL("/dashboard/chat", request.url)
           );
+        }
+        // Handle the redirect from the root path after login
+        else if (pathname === "/") {
+          nextResponse = NextResponse.redirect(
+            new URL(isAdmin ? "/dashboard" : "/chat", request.url)
+          );
         } else {
-          finalResponse = NextResponse.next();
+          nextResponse = NextResponse.next();
         }
 
-        // *** MODIFICATION START ***
-        // If a new cookie was generated from the refresh, set it on the final response
-        if (newCookie) {
-          finalResponse.headers.set("Set-Cookie", newCookie);
+        // Forward any Set-Cookie headers from the API response (like refreshed tokens)
+        const setCookieHeader = response.headers.get("set-cookie");
+        if (setCookieHeader) {
+          nextResponse.headers.set("set-cookie", setCookieHeader);
         }
-        // *** MODIFICATION END ***
 
-        return finalResponse;
+        return nextResponse;
       } else {
-        // --- AUTHENTICATION FAILURE (Expired or Invalid) ---
-        // If validation/refresh failed on a protected/root path, redirect to login.
-        // Create a redirect response to clear the cookie
-        const loginUrl = new URL("/login", request.url);
-        const response = NextResponse.redirect(loginUrl);
-        // Advise the browser to clear the cookie
-        response.headers.set(
-          "Set-Cookie",
-          "access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
-        );
+        // If the request failed even after refresh attempt, redirect to login
+        console.log("Authentication failed, redirecting to login");
+        const response = NextResponse.redirect(new URL("/login", request.url));
+
+        // Clear the cookies
+        response.cookies.delete("access_token");
+        response.cookies.delete("refresh_token");
+
         return response;
       }
+    } catch (error) {
+      console.error("Middleware API check failed:", error);
+      // On error, redirect to login and clear cookies
+      const response = NextResponse.redirect(new URL("/login", request.url));
+      response.cookies.delete("access_token");
+      response.cookies.delete("refresh_token");
+      return response;
     }
   }
 
-  // --- 2. Handle Unauthenticated Users (No Token) ---
+  // --- Logic for users who are not logged in or have no tokens ---
   if (
     !hasAccessToken &&
-    (PROTECTED_ROUTES.some((path) => pathname.startsWith(path)) ||
-      pathname === "/")
+    !hasRefreshToken &&
+    PROTECTED_ROUTES.some((path) => pathname.startsWith(path))
   ) {
-    console.log("No access token found, redirecting to login.");
+    console.log("No tokens found, redirecting to login");
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  // Allow access to other public/static files/routes.
+  if (pathname === "/") {
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+
   return NextResponse.next();
 }
 

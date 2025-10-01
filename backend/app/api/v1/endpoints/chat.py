@@ -180,6 +180,7 @@ async def websocket_endpoint(
 
             if event_type == "messages_read":
                 partner_data = message_data.get("partner")
+                # print("Read receipt data:", message_data)
                 group_id_data = message_data.get("group_id")
                 
                 reader_identity = {"id": entity.id, "role": token_data.role}
