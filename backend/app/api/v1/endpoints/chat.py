@@ -227,56 +227,128 @@ async def websocket_endpoint(
                         await manager.send_personal_message(read_notification, sender_connection_id)
 
 
+            # if event_type == "new_message":
+            #     raw_content = message_data.get("content")
+            #     if isinstance(raw_content, dict):
+            #         content_obj = raw_content
+            #     else:
+            #         continue
+
+            #     mongo_message = {
+            #         "type": message_data.get("type"),
+            #         "sender": {"id": entity.id, "role": token_data.role, "username": entity.username},
+            #         "content": content_obj,
+            #         "timestamp": datetime.now(pytz.timezone('Asia/Kolkata')),
+            #         "read_by": [entity.id], 
+            #         # "status": "sent",
+            #         "is_deleted": False
+            #     }
+            #     mongo_message["read_by"] = [{"id": entity.id, "role": token_data.role}]
+
+            #     if mongo_message["type"] == "private":
+            #         receiver_info = message_data.get("receiver")
+            #         if not receiver_info: continue
+                    
+            #         mongo_message["receiver"] = {
+            #             "id": receiver_info['id'],
+            #             "role": receiver_info['role'],
+            #             "username": receiver_info['username']
+            #         }
+                    
+            #         result = await messages_collection.insert_one(mongo_message)
+            #         mongo_message["_id"] = str(result.inserted_id)
+            #         mongo_message["event"] = "new_message"
+            #         receiver_connection_id = f"{receiver_info['role']}-{receiver_info['id']}"
+            #         await manager.broadcast_to_users(json.dumps(mongo_message, default=str), [receiver_connection_id])
+
+            #     elif mongo_message["type"] == "group":
+            #         group_info = message_data.get("group")
+            #         if not group_info: continue
+                    
+            #         mongo_message["group"] = {
+            #             "id": group_info["id"],
+            #             "name": group_info["name"]
+            #         }
+
+            #         result = await messages_collection.insert_one(mongo_message)
+            #         mongo_message["_id"] = str(result.inserted_id)
+            #         mongo_message["event"] = "new_message"
+            #         member_ids = get_group_members(group_info["id"], db=db)
+            #         connections = set(member_ids)
+            #         connections.discard(connection_id_str)
+            #         await manager.broadcast_to_users(json.dumps(mongo_message, default=str), list(connections))
+
             if event_type == "new_message":
-                raw_content = message_data.get("content")
-                if isinstance(raw_content, dict):
-                    content_obj = raw_content
-                else:
+                # Get all necessary data from the payload
+                content = message_data.get("content", {})
+                temp_id = message_data.get("_id") # Use 'temp_id' as per our design
+                receiver_data = message_data.get("receiver")
+                group_data = message_data.get("group")
+
+                # Basic validation
+                if not isinstance(content, dict):
                     continue
 
+                # Construct the base message object
                 mongo_message = {
-                    "type": message_data.get("type"),
+                    "type": "group" if group_data else "private",
                     "sender": {"id": entity.id, "role": token_data.role, "username": entity.username},
-                    "content": content_obj,
-                    "timestamp": datetime.now(pytz.timezone('Asia/Kolkata')),
-                    "read_by": [entity.id], 
-                    # "status": "sent",
+                    "content": content,
+                    "timestamp": datetime.utcnow(),  # Always use UTC for timestamps
+                    "read_by": [{"id": entity.id, "role": token_data.role}],
                     "is_deleted": False
                 }
-                mongo_message["read_by"] = [{"id": entity.id, "role": token_data.role}]
 
+                # Add receiver or group info
+                if mongo_message["type"] == "private" and receiver_data:
+                    mongo_message["receiver"] = receiver_data
+                elif mongo_message["type"] == "group" and group_data:
+                    mongo_message["group"] = group_data
+                else:
+                    continue # Invalid message structure
+
+                # Insert into DB and prepare for broadcast
+                result = await messages_collection.insert_one(mongo_message)
+                mongo_message["_id"] = str(result.inserted_id)
+                mongo_message["timestamp"] = mongo_message["timestamp"].isoformat() + "Z"
+
+                # 1. Broadcast the new message to all relevant participants
+                participants = []
                 if mongo_message["type"] == "private":
-                    receiver_info = message_data.get("receiver")
-                    if not receiver_info: continue
-                    
-                    mongo_message["receiver"] = {
-                        "id": receiver_info['id'],
-                        "role": receiver_info['role'],
-                        "username": receiver_info['username']
-                    }
-                    
-                    result = await messages_collection.insert_one(mongo_message)
-                    mongo_message["_id"] = str(result.inserted_id)
-                    mongo_message["event"] = "new_message"
-                    receiver_connection_id = f"{receiver_info['role']}-{receiver_info['id']}"
-                    await manager.broadcast_to_users(json.dumps(mongo_message, default=str), [receiver_connection_id])
-
+                    participants = [
+                        # connection_id_str, # Send back to the sender
+                        f"{receiver_data['role']}-{receiver_data['id']}"
+                    ]
                 elif mongo_message["type"] == "group":
-                    group_info = message_data.get("group")
-                    if not group_info: continue
-                    
-                    mongo_message["group"] = {
-                        "id": group_info["id"],
-                        "name": group_info["name"]
-                    }
+                    participants = set(get_group_members(group_data["id"], db=db))
+                    participants.discard(connection_id_str) 
+                
+                broadcast_payload = json.dumps({"event": "new_message", **mongo_message})
+                await manager.broadcast_to_users(broadcast_payload, list(participants))
+                
+                # 2. Send the acknowledgment back to the original sender
+                if temp_id:
+                    conversation_context = {}
+                    if receiver_data:
+                        conversation_context = {
+                            "type": "private", "id": receiver_data["id"], "role": receiver_data["role"]
+                        }
+                    elif group_data:
+                        conversation_context = {
+                            "type": "group", "id": group_data["id"], "role": None
+                        }
 
-                    result = await messages_collection.insert_one(mongo_message)
-                    mongo_message["_id"] = str(result.inserted_id)
-                    mongo_message["event"] = "new_message"
-                    member_ids = get_group_members(group_info["id"], db=db)
-                    connections = set(member_ids)
-                    connections.discard(connection_id_str)
-                    await manager.broadcast_to_users(json.dumps(mongo_message, default=str), list(connections))
+                    ack_payload = json.dumps({
+                        "event": "message_acknowledged",
+                        "temp_id": temp_id,
+                        "new_id": mongo_message["_id"],
+                        "timestamp": mongo_message["timestamp"],
+                        "conversation": conversation_context
+                    })
+                    await manager.send_personal_message(ack_payload, connection_id_str)
+                    # print(f"Sent acknowledgment for temp_id {temp_id} to user {entity.id}")
+                    print(ack_payload)
+
 
             if event_type == "delete_message":
                 message_id = message_data.get("message_id")
@@ -301,20 +373,36 @@ async def websocket_endpoint(
                     {"$set": {"is_deleted": True}}
                 )
 
+                conversation_payload = {}
                 # Notify participants
                 participants = []
                 if message_to_delete["type"] == "private":
+                    # The "partner" is the other person in the chat
+                    partner = message_to_delete["sender"] if message_to_delete["sender"]["id"] == entity.id else message_to_delete["sender"]
+                    conversation_payload = {
+                        "type": "private",
+                        "id": partner["id"],
+                        "role": partner["role"]
+                    }
+
                     participants = [
                         f"{message_to_delete['sender']['role']}-{message_to_delete['sender']['id']}",
                         f"{message_to_delete['receiver']['role']}-{message_to_delete['receiver']['id']}",
                     ]
                 elif message_to_delete["type"] == "group":
-                    group_id = message_to_delete["group"]["id"]
-                    participants = list(get_group_members(group_id, db=db))
+                    # group_id = message_to_delete["group"]["id"]
+                    group = message_to_delete["group"]
+                    conversation_payload = {
+                        "type": "group",
+                        "id": group["id"],
+                        "role": None
+                    }
+                    participants = list(get_group_members(group["id"], db=db))
 
                 delete_notification = json.dumps({
                     "event": "message_deleted",
-                    "message_id": message_id
+                    "message_id": message_id,
+                    "conversation": conversation_payload
                 })
                 await manager.broadcast_to_users(delete_notification, participants)
 
@@ -330,3 +418,15 @@ async def websocket_endpoint(
         manager.disconnect(connection_id_str)
         await broadcast_presence_update(tenant_id, entity.id, token_data.role, "offline", db)
         update_last_seen(entity.id, token_data.role)
+
+# {
+#   "event": "message_acknowledged",
+#   "temp_id": "temp-1759374037043",
+#   "new_id": "67f1b2c3d4e5f6a7b8c9d0e1",
+#   "timestamp": "2025-10-02T10:30:00.123Z",
+#   "conversation": {
+#     "type": "private", # or "group"
+#     "id": 42,
+#     "role": "user" # or admin or null for group messages
+#   }
+# }

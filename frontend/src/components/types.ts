@@ -1,3 +1,5 @@
+import { is } from "date-fns/locale";
+
 // For the /api/v1/users/me endpoint
 export interface CurrentUser {
   id: number;
@@ -43,6 +45,7 @@ export interface Conversation {
   full_name: string | null;
   type: "user" | "admin" | "group";
   last_message: string;
+  last_message_is_deleted?: boolean;
   timestamp: string;
 }
 
@@ -72,6 +75,7 @@ export interface Message {
   content: MessageContent;
   timestamp: string;
   status: "sent" | "received" | "read";
+  is_deleted?: boolean;
 }
 
 export interface MessagesResponse {

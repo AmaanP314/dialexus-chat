@@ -48,21 +48,68 @@ export const forceDownload = async (url: string, fileName: string) => {
   }
 };
 
+// import { formatInTimeZone } from "date-fns-tz";
+
+// /**
+//  * Formats a UTC timestamp string into a user-friendly IST string.
+//  * @param {string} utcTimestamp - The ISO timestamp string from the API (in UTC).
+//  * @returns {string} The formatted date string (e.g., "Aug 16, 2025 12:49").
+//  */
+// export const formatTimestampIST = (utcTimestamp: string): string => {
+//   try {
+//     const date = new Date(utcTimestamp);
+//     const timeZone = "Asia/Kolkata";
+//     // Example format: Aug 16, 2025 12:49
+//     return formatInTimeZone(date, timeZone, "MMM d, yyyy HH:mm");
+//   } catch (error) {
+//     console.error("Failed to format timestamp:", error);
+//     return "Invalid date";
+//   }
+// };
+
+// src/lib/utils.ts
+
 import { formatInTimeZone } from "date-fns-tz";
+import {
+  isToday,
+  isYesterday,
+  format as formatDate,
+  isSameDay,
+} from "date-fns"; // <-- ADD IMPORTS
+
+// ... (getCloudinaryDownloadUrl and forceDownload remain the same)
 
 /**
- * Formats a UTC timestamp string into a user-friendly IST string.
+ * Formats a UTC timestamp string into a user-friendly IST 12-hour string.
  * @param {string} utcTimestamp - The ISO timestamp string from the API (in UTC).
- * @returns {string} The formatted date string (e.g., "Aug 16, 2025 12:49").
+ * @returns {string} The formatted time string (e.g., "12:49 PM").
  */
 export const formatTimestampIST = (utcTimestamp: string): string => {
   try {
     const date = new Date(utcTimestamp);
     const timeZone = "Asia/Kolkata";
-    // Example format: Aug 16, 2025 12:49
-    return formatInTimeZone(date, timeZone, "MMM d, yyyy HH:mm");
+    // Example format: 12:49 PM
+    return formatInTimeZone(date, timeZone, "h:mm a");
   } catch (error) {
     console.error("Failed to format timestamp:", error);
     return "Invalid date";
   }
+};
+
+/**
+ * Formats a date for the chat header (Today, Yesterday, or full date).
+ * @param {string | Date} dateInput - The date to format.
+ * @returns {string} The formatted date header string.
+ */
+export const formatDateHeader = (dateInput: string | Date): string => {
+  const date = new Date(dateInput);
+  if (isToday(date)) return "Today";
+  if (isYesterday(date)) return "Yesterday";
+  return formatDate(date, "MMMM d, yyyy");
+};
+
+// Helper to check if two dates are on the same day
+export const areDatesOnSameDay = (date1: string, date2: string): boolean => {
+  if (!date1 || !date2) return false;
+  return isSameDay(new Date(date1), new Date(date2));
 };

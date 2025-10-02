@@ -53,6 +53,7 @@ class ConversationPartner(BaseModel):
     full_name: Optional[str] = None
     type: str # "user", "group", or "admin"
     last_message: str
+    last_message_is_deleted: Optional[bool] = False
     timestamp: datetime.datetime
 
 class ConversationList(BaseModel):
@@ -68,3 +69,6 @@ class UserPasswordReset(BaseModel):
 class PasswordUpdate(BaseModel):
     old_password: str
     new_password: str
+
+class FullNameUpdate(BaseModel):
+    full_name: str

@@ -10,14 +10,17 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { formatTimestampIST } from "@/lib/utils";
 import { usePresence } from "@/context/PresenceContext";
 import { Message, Conversation, MessageContent } from "./types";
 import Avatar from "./Avatar";
 import MessageBubble from "./MessageBubble";
 import { AttachmentPreview } from "./AttachmentPreview"; // Assuming this component exists
 import { uploadToCloudinary } from "@/lib/api";
-import { File as FileIcon } from "lucide-react";
+import {
+  formatTimestampIST,
+  areDatesOnSameDay,
+  formatDateHeader,
+} from "@/lib/utils";
 
 interface ChatWindowProps {
   conversation: Conversation;
@@ -25,7 +28,16 @@ interface ChatWindowProps {
   isLoading: boolean;
   onLoadMore: () => void;
   onSendMessage: (content: MessageContent) => void;
+  onDeleteMessage: (messageId: string) => void;
 }
+
+const DateHeader = ({ date }: { date: string }) => (
+  <div className="flex justify-center my-4">
+    <div className="px-3 py-1 bg-muted rounded-full text-xs text-muted-foreground shadow-sm">
+      {formatDateHeader(date)}
+    </div>
+  </div>
+);
 
 const ChatWindow: React.FC<ChatWindowProps> = ({
   conversation,
@@ -33,6 +45,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
   isLoading,
   onLoadMore,
   onSendMessage,
+  onDeleteMessage,
 }) => {
   const { user } = useAuth();
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -176,6 +189,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
               message={msg}
               isSentByCurrentUser={msg.sender.id === user?.id}
               isGroupMessage={conversation.type === "group"}
+              onDelete={onDeleteMessage}
             />
           ))}
         </div>

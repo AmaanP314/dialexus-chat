@@ -75,6 +75,7 @@ import Avatar from "./Avatar";
 import { Conversation } from "./types";
 import { usePresence } from "@/context/PresenceContext";
 import { useNotification } from "@/context/NotificationContext";
+import { useAuth } from "@/context/AuthContext";
 
 interface ConversationItemProps {
   conversation: Conversation;
@@ -94,11 +95,13 @@ const ConversationItem: React.FC<ConversationItemProps> = ({
   isSelected,
   onClick,
 }) => {
+  const { user } = useAuth();
   const { presence } = usePresence();
   const { unreadCounts } = useNotification();
   const userKey = `${conversation.type}-${conversation.id}`;
   const isOnline = presence[userKey]?.status === "online";
   const unreadCount = unreadCounts.get(userKey) || 0;
+  const isAdmin = user?.type === "admin" || user?.type === "super_admin";
 
   return (
     <div
@@ -127,8 +130,15 @@ const ConversationItem: React.FC<ConversationItemProps> = ({
         </div>
 
         <div className="flex items-center justify-between mt-1">
-          <p className="text-sm text-muted-foreground truncate italic">
+          {/* <p className="text-sm text-muted-foreground truncate italic">
             {conversation.last_message}
+          </p> */}
+          <p className="text-sm text-muted-foreground truncate">
+            {conversation.last_message_is_deleted && !isAdmin ? (
+              <span className="italic">This message was deleted</span>
+            ) : (
+              conversation.last_message
+            )}
           </p>
 
           {unreadCount > 0 && (

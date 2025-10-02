@@ -9,7 +9,7 @@ from app.security.dependencies import get_current_user_from_cookie
 from app.models import User, Admin, SuperAdmin, Group, GroupMember
 
 
-from app.schemas.user import SearchResult, ConversationList, ConversationPartner, MeProfileOut, PasswordUpdate
+from app.schemas.user import SearchResult, ConversationList, ConversationPartner, MeProfileOut, PasswordUpdate, FullNameUpdate 
 from app.security.hashing import Hasher 
 
 router = APIRouter()
@@ -183,6 +183,7 @@ async def get_user_conversations(
     conversations = []
     for msg in sorted(latest_messages, key=lambda x: x['timestamp'], reverse=True):
         last_message_text = msg.get("content", {}).get("text", "[Attachment]")
+        message_is_deleted = msg.get("is_deleted")
         
         if msg['type'] == 'private':
             partner = msg['receiver'] if msg['sender']['id'] == entity_id and msg['sender']['role'] == entity_role else msg['sender']
@@ -198,6 +199,7 @@ async def get_user_conversations(
                     full_name=partner_details.full_name, # <-- ADDED FULL NAME
                     type=partner['role'],
                     last_message=last_message_text,
+                    last_message_is_deleted=message_is_deleted,
                     timestamp=msg['timestamp']
                 ))
         elif msg['type'] == 'group':
@@ -208,6 +210,7 @@ async def get_user_conversations(
                 full_name=None, # Groups don't have a full_name
                 type='group',
                 last_message=last_message_text,
+                last_message_is_deleted=message_is_deleted,
                 timestamp=msg['timestamp']
             ))
 
@@ -237,4 +240,17 @@ def update_password(
     current_entity.password_hash = new_password_hash
     db.commit()
 
+    return None
+
+@router.patch("/me/full-name", status_code=status.HTTP_204_NO_CONTENT)
+def update_full_name(
+    name_data: FullNameUpdate,
+    current_entity: Union[User, Admin] = Depends(get_current_user_from_cookie),
+    db: Session = Depends(get_db),
+):
+    """
+    Allows the currently authenticated user or admin to update their own full name.
+    """
+    current_entity.full_name = name_data.full_name
+    db.commit()
     return None

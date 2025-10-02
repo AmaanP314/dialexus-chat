@@ -16,6 +16,13 @@ import { useSocket } from "@/context/SocketContext";
 import { useNotification } from "@/context/NotificationContext";
 import { getMessages, getConversations } from "@/lib/api";
 
+const getCompositeKey = (conversation: {
+  type: string;
+  id: number;
+}): string => {
+  return `${conversation.type}-${conversation.id}`;
+};
+
 export default function ChatPage() {
   // const { user, lastEvent, sendMessage, isLoading: isAuthLoading } = useAuth();
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -43,12 +50,128 @@ export default function ChatPage() {
     }
   }, [user]);
 
+  const handleDeleteMessage = (messageId: string) => {
+    if (!selectedConversation || !user) return;
+
+    // Send delete event to backend
+    sendMessage({
+      event: "delete_message",
+      message_id: messageId,
+    });
+
+    // Optimistic UI update (optional - the backend will send back message_deleted event)
+    // If you want immediate feedback, uncomment below:
+
+    const compositeKey = getCompositeKey(selectedConversation);
+    const isAdmin = user.type === "admin" || user.type === "super_admin";
+
+    setConversationsCache((prevCache) => {
+      const newCache = new Map(prevCache);
+      const conversationData = newCache.get(compositeKey);
+
+      if (conversationData) {
+        const updatedMessages = conversationData.messages.map((msg) => {
+          if (msg._id === messageId) {
+            if (isAdmin) {
+              return { ...msg, is_deleted: true };
+            } else {
+              return {
+                ...msg,
+                is_deleted: true,
+                content: {
+                  text: "This message was deleted",
+                  image: null,
+                  file: null,
+                },
+              };
+            }
+          }
+          return msg;
+        });
+
+        newCache.set(compositeKey, {
+          ...conversationData,
+          messages: updatedMessages,
+        });
+      }
+
+      return newCache;
+    });
+  };
+
   const getCompositeKey = (conversation: {
     type: string;
     id: number;
   }): string => {
     return `${conversation.type}-${conversation.id}`;
   };
+
+  // const handleRealtimeMessage = useCallback(
+  //   (msg: RealtimeMessage) => {
+  //     let conversationId: string;
+  //     let conversationType: "user" | "admin" | "group";
+
+  //     if (msg.type === "group") {
+  //       conversationId = getCompositeKey({ type: "group", id: msg.group!.id });
+  //       conversationType = "group";
+  //     } else {
+  //       const partner = msg.sender.id === user?.id ? msg.receiver! : msg.sender;
+  //       conversationId = getCompositeKey({
+  //         type: partner.role,
+  //         id: partner.id,
+  //       });
+  //       conversationType = partner.role as "user" | "admin";
+  //     }
+
+  //     setConversationsCache((prevCache) => {
+  //       const newCache = new Map(prevCache);
+  //       const existing = newCache.get(conversationId);
+  //       if (existing) {
+  //         newCache.set(conversationId, {
+  //           ...existing,
+  //           messages: [...existing.messages, msg as Message],
+  //         });
+  //       }
+  //       return newCache;
+  //     });
+
+  //     setConversationsList((prevList) => {
+  //       const convoIdentifier =
+  //         conversationType === "group"
+  //           ? { id: msg.group!.id, type: "group" }
+  //           : {
+  //               id:
+  //                 msg.sender.id === user?.id ? msg.receiver!.id : msg.sender.id,
+  //               type: conversationType,
+  //             };
+
+  //       const existingConvoIndex = prevList.findIndex(
+  //         (c) => c.id === convoIdentifier.id && c.type === convoIdentifier.type
+  //       );
+  //       let updatedList = [...prevList];
+
+  //       if (existingConvoIndex > -1) {
+  //         const existingConvo = updatedList[existingConvoIndex];
+  //         existingConvo.last_message = msg.content.text || "[attachment]";
+  //         existingConvo.timestamp = msg.timestamp;
+  //         updatedList.splice(existingConvoIndex, 1);
+  //         updatedList.unshift(existingConvo);
+  //       } else {
+  //         const newConvo: Conversation = {
+  //           id: convoIdentifier.id,
+  //           name: msg.type === "group" ? msg.group!.name : msg.sender.username,
+  //           full_name: null, // This can be populated if available
+  //           type: conversationType,
+  //           last_message: msg.content.text || "[attachment]",
+  //           timestamp: msg.timestamp,
+  //         };
+  //         updatedList.unshift(newConvo);
+  //       }
+  //       return updatedList;
+  //     });
+  //   },
+  //   [user?.id]
+  // );
 
   const handleRealtimeMessage = useCallback(
     (msg: RealtimeMessage) => {
@@ -98,16 +221,18 @@ export default function ChatPage() {
           const existingConvo = updatedList[existingConvoIndex];
           existingConvo.last_message = msg.content.text || "[attachment]";
           existingConvo.timestamp = msg.timestamp;
+          existingConvo.last_message_is_deleted = false; // *** ADD THIS LINE ***
           updatedList.splice(existingConvoIndex, 1);
           updatedList.unshift(existingConvo);
         } else {
           const newConvo: Conversation = {
             id: convoIdentifier.id,
             name: msg.type === "group" ? msg.group!.name : msg.sender.username,
-            full_name: null, // This can be populated if available
+            full_name: null,
             type: conversationType,
             last_message: msg.content.text || "[attachment]",
             timestamp: msg.timestamp,
+            last_message_is_deleted: false, // *** ADD THIS LINE ***
           };
           updatedList.unshift(newConvo);
         }
@@ -126,6 +251,161 @@ export default function ChatPage() {
       (lastEvent.type === "private" || lastEvent.type === "group")
     ) {
       handleRealtimeMessage(lastEvent);
+    }
+
+    if (lastEvent.event === "message_acknowledged") {
+      const { temp_id, new_id, conversation, timestamp } = lastEvent;
+
+      // Create conversation key using the format you specified
+      const conversationKey = `${conversation.role || conversation.type}-${
+        conversation.id
+      }`;
+      console.log("Updating message ID in conversation:", conversationKey);
+
+      setConversationsCache((prevCache) => {
+        const newCache = new Map(prevCache);
+        const conversationData = newCache.get(conversationKey);
+
+        if (conversationData) {
+          const updatedMessages = conversationData.messages.map((msg) => {
+            // Find message with temp_id and replace with new_id
+            if (msg._id === temp_id) {
+              return {
+                ...msg,
+                _id: new_id,
+                timestamp: timestamp || msg.timestamp, // Update timestamp if provided
+              };
+            }
+            return msg;
+          });
+
+          newCache.set(conversationKey, {
+            ...conversationData,
+            messages: updatedMessages,
+          });
+        }
+        console.log(newCache.get(conversationKey));
+        return newCache;
+      });
+
+      // Also update the conversation list if this was the last message
+      setConversationsList((prevList) => {
+        return prevList.map((conv) => {
+          const convKey = `${conv.type}-${conv.id}`;
+          if (convKey === conversationKey) {
+            // Check if the last message needs updating
+            // This is useful if the conversation list shows message IDs
+            return { ...conv, timestamp: timestamp || conv.timestamp };
+          }
+          return conv;
+        });
+      });
+    }
+
+    if (lastEvent.event === "message_deleted") {
+      const { message_id, conversation } = lastEvent;
+
+      // Construct conversation key from the event data
+      const conversationKey =
+        conversation.type === "group"
+          ? `group-${conversation.id}`
+          : `${conversation.role}-${conversation.id}`;
+
+      console.log(
+        "Message deleted event received:",
+        message_id,
+        conversationKey
+      );
+
+      // Check if current user is admin
+      const isAdmin = user?.type === "admin" || user?.type === "super_admin";
+
+      // Update conversationsCache
+      setConversationsCache((prevCache) => {
+        const newCache = new Map(prevCache);
+        const conversationData = newCache.get(conversationKey);
+
+        if (conversationData) {
+          const updatedMessages = conversationData.messages.map((msg) => {
+            if (msg._id === message_id) {
+              if (isAdmin) {
+                // Admin: Keep original content but mark as deleted
+                return {
+                  ...msg,
+                  is_deleted: true,
+                };
+              } else {
+                // Normal user: Replace content with placeholder
+                return {
+                  ...msg,
+                  is_deleted: true,
+                  content: {
+                    text: "This message was deleted",
+                    image: null,
+                    file: null,
+                  },
+                };
+              }
+            }
+            return msg;
+          });
+
+          newCache.set(conversationKey, {
+            ...conversationData,
+            messages: updatedMessages,
+          });
+        }
+        console.log(
+          "updated conversation after deletion:",
+          newCache.get(conversationKey)
+        );
+        return newCache;
+      });
+
+      // Update conversationsList if the deleted message was the last message
+      setConversationsList((prevList) => {
+        return prevList.map((conv) => {
+          const convKey = `${conv.type}-${conv.id}`;
+
+          if (convKey === conversationKey) {
+            // Get the conversation cache to check if deleted message is last message
+            setConversationsCache((cache) => {
+              const conversationData = cache.get(conversationKey);
+
+              if (conversationData && conversationData.messages.length > 0) {
+                // Find the last message
+                const lastMessage =
+                  conversationData.messages[
+                    conversationData.messages.length - 1
+                  ];
+
+                // If the deleted message was the last message, update the conversation list
+                if (lastMessage._id === message_id) {
+                  // This will be reflected in the next render
+                  setTimeout(() => {
+                    setConversationsList((prevList) =>
+                      prevList.map((c) => {
+                        if (c.id === conv.id && c.type === conv.type) {
+                          return {
+                            ...c,
+                            last_message: isAdmin
+                              ? c.last_message // Keep original for admin
+                              : "This message was deleted", // Replace for normal user
+                            last_message_is_deleted: true,
+                          };
+                        }
+                        return c;
+                      })
+                    );
+                  }, 0);
+                }
+              }
+              return cache;
+            });
+          }
+          return conv;
+        });
+      });
     }
 
     // --- HANDLE READ RECEIPTS ---
@@ -165,9 +445,11 @@ export default function ChatPage() {
 
     const isGroup = selectedConversation.type === "group";
     let payload;
+    const temp_id = `temp-${Date.now()}`; // Temporary ID for optimistic UI
 
     if (isGroup) {
       payload = {
+        _id: temp_id,
         event: "new_message",
         type: "group",
         content, // Pass the whole content object
@@ -175,6 +457,7 @@ export default function ChatPage() {
       };
     } else {
       payload = {
+        _id: temp_id,
         event: "new_message",
         type: "private",
         content, // Pass the whole content object
@@ -188,7 +471,7 @@ export default function ChatPage() {
 
     // Optimistic UI Update
     const optimisticMessage: Message = {
-      _id: `temp-${Date.now()}`,
+      _id: temp_id,
       sender: {
         id: user.id,
         username: user.username,
@@ -258,13 +541,7 @@ export default function ChatPage() {
         return;
 
       setSelectedConversation(conversation);
-
-      // --- NOTIFICATION LOGIC ---
-      // 1. Set this conversation as the globally active one
       setActiveChatId(compositeKey);
-      // 2. Clear its unread count in the global state
-      // clearUnreadCount(compositeKey);
-      // 3. Inform the server that messages have been read
       if (unreadCounts.get(compositeKey)) {
         clearUnreadCount(compositeKey);
 
@@ -354,6 +631,7 @@ export default function ChatPage() {
           }
           onLoadMore={handleFetchMoreMessages}
           onSendMessage={handleSendMessage}
+          onDeleteMessage={handleDeleteMessage}
         />
       ) : (
         <section className="hidden md:flex flex-col flex-grow bg-muted/30 items-center justify-center text-center p-8">
