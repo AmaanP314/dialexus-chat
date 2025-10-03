@@ -1,6 +1,6 @@
 import { Message } from "../types";
 import Avatar from "../Avatar";
-import { formatTimestampIST } from "@/lib/utils";
+import { formatMessageTimestamp } from "@/lib/utils";
 import { FileAttachmentDisplay } from "../FileAttachmentDisplay";
 import { ImageModal } from "../ImageModal";
 import { useState } from "react";
@@ -64,7 +64,7 @@ export default function AdminMessageBubble({
               </p>
             )}
             <div className="text-right text-xs text-muted-foreground/80">
-              {formatTimestampIST(message.timestamp)}
+              {formatMessageTimestamp(message.timestamp)}
             </div>
           </div>
         </div>

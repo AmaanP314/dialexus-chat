@@ -17,6 +17,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   logout: (reason?: string) => void;
   isLoading: boolean;
+  updateUser: (updatedFields: Partial<CurrentUser>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -46,6 +47,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const updateUser = (updatedFields: Partial<CurrentUser>) => {
+    setUser((prevUser) =>
+      prevUser ? { ...prevUser, ...updatedFields } : null
+    );
+  };
+
   useEffect(() => {
     const checkUserSession = async () => {
       try {
@@ -67,6 +74,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isAuthenticated: !!user,
         logout,
         isLoading,
+        updateUser,
       }}
     >
       {children}

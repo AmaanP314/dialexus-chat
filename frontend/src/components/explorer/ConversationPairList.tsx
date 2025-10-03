@@ -11,7 +11,7 @@ import {
   Calendar,
 } from "lucide-react";
 import Avatar from "../Avatar";
-import { formatTimestampIST } from "@/lib/utils";
+import { formatConversationTimestamp } from "@/lib/utils";
 
 type SortKey = "timestamp" | "messages";
 type SortOrder = "asc" | "desc";
@@ -152,7 +152,9 @@ export default function ConversationPairList({
               <div className="flex justify-between items-center text-xs text-muted-foreground mt-2">
                 <div className="flex items-center gap-1">
                   <Calendar size={12} />
-                  <span>{formatTimestampIST(pair.last_message_timestamp)}</span>
+                  <span>
+                    {formatConversationTimestamp(pair.last_message_timestamp)}
+                  </span>
                 </div>
                 <div className="flex items-center gap-1">
                   <MessagesSquare size={12} />

@@ -39,6 +39,20 @@ const apiFetch = async (
   return response;
 };
 
+export const refreshToken = async (): Promise<Response> => {
+  console.log("Attempting to refresh token...");
+  const response = await apiFetch("/auth/refresh", {
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to refresh token.");
+  }
+
+  console.log("Token refreshed successfully.");
+  return response;
+};
+
 export const loginUser = async ({
   username,
   password,
@@ -265,3 +279,25 @@ export const getNotificationSummary =
     if (!response.ok) throw new Error("Failed to fetch notification summary.");
     return response.json();
   };
+
+export const changeFullName = async (fullName: string): Promise<Response> => {
+  return apiFetch("/users/me/full-name", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ full_name: fullName }),
+  });
+};
+
+export const changePassword = async (
+  oldPassword: string,
+  newPassword: string
+): Promise<Response> => {
+  return apiFetch("/users/me/password", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      old_password: oldPassword,
+      new_password: newPassword,
+    }),
+  });
+};

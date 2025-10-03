@@ -18,7 +18,7 @@ interface MessageBubbleProps {
   isGroupMessage: boolean;
   onDelete?: (messageId: string) => void; // Add this prop
 }
-
+const CHAR_LIMIT = 400;
 const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
   isSentByCurrentUser,
@@ -30,6 +30,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showDeleteMenu, setShowDeleteMenu] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu when clicking outside
@@ -56,7 +57,9 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   const nameOrderClasses = isSentByCurrentUser ? "flex-row-reverse" : "";
 
   const hasAttachment = message.content.image || message.content.file;
+  // const hasText = message.content.text && message.content.text.trim() !== "";
   const hasText = message.content.text && message.content.text.trim() !== "";
+  const isLongMessage = hasText && message.content.text!.length > CHAR_LIMIT;
 
   const getFileNameFromUrl = (url: string) =>
     decodeURIComponent(new URL(url).pathname.split("/").pop() || "file");
@@ -196,9 +199,24 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                 )}
               </div>
             )}
-            {hasText && (
+            {/* {hasText && (
               <p className="text-foreground text-sm whitespace-pre-wrap break-words">
                 {message.content.text}
+              </p>
+            )} */}
+            {hasText && (
+              <p className="text-foreground text-sm whitespace-pre-wrap break-words">
+                {isLongMessage && !isExpanded
+                  ? `${message.content.text!.substring(0, CHAR_LIMIT)}... `
+                  : message.content.text}
+                {isLongMessage && !isExpanded && (
+                  <button
+                    onClick={() => setIsExpanded(true)}
+                    className="text-blue-400 hover:underline text-sm font-semibold"
+                  >
+                    read more
+                  </button>
+                )}
               </p>
             )}
             <div className="flex items-center justify-end mt-1">

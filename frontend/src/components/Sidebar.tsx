@@ -79,7 +79,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
-    <aside className="w-full md:w-1/3 lg:w-1/4 h-screen bg-background border-r border-border flex flex-col">
+    // <aside className="w-full md:w-1/3 lg:w-1/4 h-screen bg-background border-r border-border flex flex-col">
+    <aside className="w-full md:w-96 bg-background border-r border-border flex flex-col flex-shrink-0">
       <UserProfile />
       <div className="p-4 bg-background border-b border-border">
         <div className="relative">

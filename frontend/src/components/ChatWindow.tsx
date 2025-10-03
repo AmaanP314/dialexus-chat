@@ -56,10 +56,19 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const { presence } = usePresence();
   const userKey = `${conversation.type}-${conversation.id}`;
   const presenceInfo = presence[userKey];
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto"; // Reset height
+      const scrollHeight = textareaRef.current.scrollHeight;
+      textareaRef.current.style.height = `${scrollHeight}px`; // Set to content height
+    }
+  }, [inputText]);
 
   const handleSend = async () => {
     if (isUploading || (!inputText.trim() && !attachment)) return;
@@ -103,6 +112,14 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault(); // Prevent new line on Enter
+      handleSend();
+    }
+    // Shift + Enter will create a new line by default
   };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -183,15 +200,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
           )}
         </div>
         <div>
-          {/* {messages.map((msg) => (
-            <MessageBubble
-              key={msg._id}
-              message={msg}
-              isSentByCurrentUser={msg.sender.id === user?.id}
-              isGroupMessage={conversation.type === "group"}
-              onDelete={onDeleteMessage}
-            />
-          ))} */}
           {messages.map((msg, index) => {
             const prevMsg = messages[index - 1];
             const showDateHeader = !areDatesOnSameDay(
@@ -258,7 +266,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
             </button>
           </div>
           {/* Text Input */}
-          <input
+          {/* <input
             type="text"
             placeholder="Type a message..."
             value={inputText}
@@ -266,6 +274,21 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
             onKeyPress={(e) => e.key === "Enter" && handleSend()}
             disabled={isUploading}
             className="flex-grow px-6 py-2 bg-muted focus:outline-none text-foreground disabled:opacity-50 rounded-full h-12 transition-colors duration-200 focus:ring-2 focus:ring-primary"
+            aria-label="Message input field"
+          /> */}
+          <textarea
+            ref={textareaRef}
+            placeholder="Type a message..."
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            disabled={isUploading}
+            className="flex-grow px-4 py-2 bg-muted focus:outline-none text-foreground disabled:opacity-50 rounded-2xl transition-colors duration-200 focus:ring-2 focus:ring-primary resize-none leading-6"
+            rows={1}
+            style={{
+              maxHeight: "9rem" /* Approx 6 lines */,
+              overflowY: "auto",
+            }}
             aria-label="Message input field"
           />
           {/* Send Button */}

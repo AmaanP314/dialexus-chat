@@ -11,6 +11,7 @@ import React, {
   useCallback,
 } from "react";
 import { useAuth } from "./AuthContext";
+import { refreshToken } from "@/lib/api";
 
 // This type was previously in AuthContext
 interface PresenceState {
@@ -43,6 +44,31 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     },
     [logout]
   );
+
+  useEffect(() => {
+    // Only run this logic if the user is logged in
+    if (user) {
+      // Set an interval to refresh the token every 10 minutes
+      const REFRESH_INTERVAL = 14 * 60 * 1000; // 10 minutes in milliseconds
+
+      const intervalId = setInterval(async () => {
+        try {
+          await refreshToken();
+        } catch (error) {
+          console.error("Periodic token refresh failed:", error);
+          // If refresh fails (e.g., refresh token expired), log the user out.
+          logout("Your session has expired. Please log in again.");
+          clearInterval(intervalId); // Stop the timer
+        }
+      }, REFRESH_INTERVAL);
+
+      // IMPORTANT: Cleanup function to clear the interval
+      // This runs when the user logs out or the component unmounts
+      return () => {
+        clearInterval(intervalId);
+      };
+    }
+  }, [user, logout]);
 
   useEffect(() => {
     // Connect only if we have a user and there's no existing connection

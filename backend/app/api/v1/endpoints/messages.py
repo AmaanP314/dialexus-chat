@@ -19,9 +19,9 @@ def calculate_status_for_user(message: Dict[str, Any], current_user_identity: Di
     read_by_list = message.get("read_by", [])
     if message.get("sender") == current_user_identity:
         if message["type"] == "private":
-            receiver_identity = message.get("receiver").get("id")
+            receiver_id = message.get("receiver").get("id")
             receiver_role = message.get("receiver").get("role")
-            receiver_identity = {"id": receiver_identity, "role": receiver_role}
+            receiver_identity = {"id": receiver_id, "role": receiver_role}
             if receiver_identity in read_by_list:
                 return "read"
         return "sent"
@@ -46,6 +46,7 @@ async def get_message_history(
     
     entity_id = current_entity.id
     entity_role = "admin" if isinstance(current_entity, Admin) else "user"
+    entity_name = current_entity.username
     
     query = {"type": conversation_type}
 
@@ -90,8 +91,9 @@ async def get_message_history(
 
     messages_cursor = messages_collection.find(query).sort("timestamp", -1).limit(limit)
     messages_from_db = await messages_cursor.to_list(length=limit)
-    
-    current_user_identity = {"id": entity_id, "role": entity_role}
+
+    current_user_identity = {"id": entity_id, "username": entity_name, "role": entity_role}
+    # print("Current User Identity:", current_user_identity)
     processed_messages = []
     for msg in messages_from_db:
         status = calculate_status_for_user(msg, current_user_identity)
