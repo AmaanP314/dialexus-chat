@@ -17,7 +17,7 @@ import MessageBubble from "./MessageBubble";
 import { AttachmentPreview } from "./AttachmentPreview"; // Assuming this component exists
 import { uploadToCloudinary } from "@/lib/api";
 import {
-  formatTimestampIST,
+  formatLastSeen,
   areDatesOnSameDay,
   formatDateHeader,
 } from "@/lib/utils";
@@ -32,8 +32,8 @@ interface ChatWindowProps {
 }
 
 const DateHeader = ({ date }: { date: string }) => (
-  <div className="flex justify-center my-4">
-    <div className="px-3 py-1 bg-muted rounded-full text-xs text-muted-foreground shadow-sm">
+  <div className="flex justify-center my-4 sticky top-4 z-10">
+    <div className="px-3 py-1 bg-muted/80 backdrop-blur-sm rounded-full text-xs text-muted-foreground shadow-sm">
       {formatDateHeader(date)}
     </div>
   </div>
@@ -128,7 +128,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
     if (presenceInfo?.status === "offline") {
       if (conversation.type === "user" && presenceInfo.lastSeen) {
         // You can create a more sophisticated "time ago" function if needed
-        return `last seen ${formatTimestampIST(presenceInfo.lastSeen)}`;
+        return formatLastSeen(presenceInfo.lastSeen);
       }
       return "Offline";
     }
@@ -183,7 +183,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
           )}
         </div>
         <div>
-          {messages.map((msg) => (
+          {/* {messages.map((msg) => (
             <MessageBubble
               key={msg._id}
               message={msg}
@@ -191,7 +191,27 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
               isGroupMessage={conversation.type === "group"}
               onDelete={onDeleteMessage}
             />
-          ))}
+          ))} */}
+          {messages.map((msg, index) => {
+            const prevMsg = messages[index - 1];
+            const showDateHeader = !areDatesOnSameDay(
+              msg.timestamp,
+              prevMsg?.timestamp
+            );
+
+            return (
+              <React.Fragment key={msg._id}>
+                {showDateHeader && <DateHeader date={msg.timestamp} />}
+                <MessageBubble
+                  key={msg._id}
+                  message={msg}
+                  isSentByCurrentUser={msg.sender.id === user?.id}
+                  isGroupMessage={conversation.type === "group"}
+                  onDelete={onDeleteMessage}
+                />
+              </React.Fragment>
+            );
+          })}
         </div>
         <div ref={bottomRef} />
       </main>

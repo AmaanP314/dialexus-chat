@@ -1,5 +1,3 @@
-import { is } from "date-fns/locale";
-
 // For the /api/v1/users/me endpoint
 export interface CurrentUser {
   id: number;

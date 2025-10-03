@@ -48,58 +48,119 @@ export const forceDownload = async (url: string, fileName: string) => {
   }
 };
 
-// import { formatInTimeZone } from "date-fns-tz";
-
-// /**
-//  * Formats a UTC timestamp string into a user-friendly IST string.
-//  * @param {string} utcTimestamp - The ISO timestamp string from the API (in UTC).
-//  * @returns {string} The formatted date string (e.g., "Aug 16, 2025 12:49").
-//  */
-// export const formatTimestampIST = (utcTimestamp: string): string => {
-//   try {
-//     const date = new Date(utcTimestamp);
-//     const timeZone = "Asia/Kolkata";
-//     // Example format: Aug 16, 2025 12:49
-//     return formatInTimeZone(date, timeZone, "MMM d, yyyy HH:mm");
-//   } catch (error) {
-//     console.error("Failed to format timestamp:", error);
-//     return "Invalid date";
-//   }
-// };
-
-// src/lib/utils.ts
-
 import { formatInTimeZone } from "date-fns-tz";
 import {
   isToday,
   isYesterday,
   format as formatDate,
   isSameDay,
-} from "date-fns"; // <-- ADD IMPORTS
+} from "date-fns";
 
-// ... (getCloudinaryDownloadUrl and forceDownload remain the same)
+const IST_TIMEZONE = "Asia/Kolkata";
 
 /**
- * Formats a UTC timestamp string into a user-friendly IST 12-hour string.
- * @param {string} utcTimestamp - The ISO timestamp string from the API (in UTC).
- * @returns {string} The formatted time string (e.g., "12:49 PM").
+ * Formats a timestamp for the message bubble (e.g., "8:39 AM").
+ * @param utcTimestamp The UTC timestamp string from the server.
  */
-export const formatTimestampIST = (utcTimestamp: string): string => {
+export const formatMessageTimestamp = (utcTimestamp: string): string => {
   try {
-    const date = new Date(utcTimestamp);
-    const timeZone = "Asia/Kolkata";
-    // Example format: 12:49 PM
-    return formatInTimeZone(date, timeZone, "h:mm a");
+    // 1. Ensure the timestamp is explicitly marked as UTC (Zulu time)
+    let utcString = utcTimestamp.endsWith("Z")
+      ? utcTimestamp
+      : `${utcTimestamp}Z`;
+
+    // 2. Create the Date object, which now correctly represents the UTC moment in time
+    const date = new Date(utcString);
+
+    // 3. formatInTimeZone converts the correct UTC moment to IST
+    const istTime = formatInTimeZone(date, IST_TIMEZONE, "h:mm a");
+
+    console.log("Input string (fixed):", utcString);
+    console.log("IST timestamp (fixed):", istTime);
+
+    return istTime;
   } catch (error) {
-    console.error("Failed to format timestamp:", error);
+    return "Invalid date";
+  }
+};
+// export const formatMessageTimestamp = (utcTimestamp: string): string => {
+//   try {
+//     console.log("Formatting timestamp:", utcTimestamp);
+//     console.log(
+//       "IST timestamp:",
+//       formatInTimeZone(new Date(utcTimestamp), IST_TIMEZONE, "h:mm a")
+//     );
+//     return formatInTimeZone(new Date(utcTimestamp), IST_TIMEZONE, "h:mm a");
+//   } catch (error) {
+//     return "Invalid date";
+//   }
+// };
+
+/**
+ * Formats a timestamp for the conversation list (e.g., "8:39 AM", "Yesterday", "03/10/2025").
+ * @param utcTimestamp The UTC timestamp string from the server.
+ */
+export const formatConversationTimestamp = (utcTimestamp: string): string => {
+  try {
+    // FIX: Explicitly mark the input string as UTC (by appending 'Z')
+    // to ensure 'new Date()' correctly interprets the time regardless of the server's locale.
+    const utcString = utcTimestamp.endsWith("Z")
+      ? utcTimestamp
+      : `${utcTimestamp}Z`;
+
+    // Create the Date object from the correct UTC moment.
+    const date = new Date(utcString);
+
+    // NOTE: isToday and isYesterday should be timezone-aware functions
+    // that internally compare the 'date' (which is a UTC moment)
+    // against the current *IST* date/time.
+
+    if (isToday(date)) {
+      // If it's today, format it to the time in IST.
+      return formatInTimeZone(date, IST_TIMEZONE, "h:mm a");
+    }
+
+    if (isYesterday(date)) {
+      // If it's yesterday in IST.
+      return "Yesterday";
+    }
+
+    // Otherwise, format it as a date.
+    // NOTE: You might need to use a timezone-aware function here too,
+    // e.g., formatInTimeZone(date, IST_TIMEZONE, "dd/MM/yyyy")
+    // to ensure the date (dd/MM/yyyy) is also calculated based on IST.
+    return formatDate(date, "dd/MM/yyyy");
+  } catch (error) {
+    // console.error("Error formatting conversation timestamp:", error);
     return "Invalid date";
   }
 };
 
 /**
- * Formats a date for the chat header (Today, Yesterday, or full date).
- * @param {string | Date} dateInput - The date to format.
- * @returns {string} The formatted date header string.
+ * Formats the "last seen" status with full clarity (e.g., "last seen today at 8:29 AM").
+ * @param utcTimestamp The UTC timestamp string from the server.
+ */
+export const formatLastSeen = (utcTimestamp: string): string => {
+  try {
+    const date = new Date(utcTimestamp);
+    const timePart = formatInTimeZone(date, IST_TIMEZONE, "h:mm a");
+
+    if (isToday(date)) {
+      return `last seen today at ${timePart}`;
+    }
+    if (isYesterday(date)) {
+      return `last seen yesterday at ${timePart}`;
+    }
+    const datePart = formatDate(date, "on dd/MM/yyyy");
+    return `last seen ${datePart}`;
+  } catch (error) {
+    return "Invalid date";
+  }
+};
+
+/**
+ * Formats a date for the chat header (e.g., "Today", "Yesterday", "October 3, 2025").
+ * @param dateInput The date to format.
  */
 export const formatDateHeader = (dateInput: string | Date): string => {
   const date = new Date(dateInput);
@@ -108,8 +169,12 @@ export const formatDateHeader = (dateInput: string | Date): string => {
   return formatDate(date, "MMMM d, yyyy");
 };
 
-// Helper to check if two dates are on the same day
-export const areDatesOnSameDay = (date1: string, date2: string): boolean => {
+/**
+ * Helper to check if two dates are on the same day.
+ * @param date1 The first date string.
+ * @param date2 The second date string.
+ */
+export const areDatesOnSameDay = (date1?: string, date2?: string): boolean => {
   if (!date1 || !date2) return false;
   return isSameDay(new Date(date1), new Date(date2));
 };
