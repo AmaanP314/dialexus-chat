@@ -220,6 +220,7 @@ export default function ChatPage() {
         if (existingConvoIndex > -1) {
           const existingConvo = updatedList[existingConvoIndex];
           existingConvo.last_message = msg.content.text || "[attachment]";
+          existingConvo.last_message_id = msg._id;
           existingConvo.timestamp = msg.timestamp;
           existingConvo.last_message_is_deleted = false; // *** ADD THIS LINE ***
           updatedList.splice(existingConvoIndex, 1);
@@ -231,6 +232,7 @@ export default function ChatPage() {
             full_name: null,
             type: conversationType,
             last_message: msg.content.text || "[attachment]",
+            last_message_id: msg._id,
             timestamp: msg.timestamp,
             last_message_is_deleted: false, // *** ADD THIS LINE ***
           };
@@ -302,6 +304,113 @@ export default function ChatPage() {
       });
     }
 
+    // if (lastEvent.event === "message_deleted") {
+    //   const { message_id, conversation } = lastEvent;
+
+    //   // Construct conversation key from the event data
+    //   const conversationKey =
+    //     conversation.type === "group"
+    //       ? `group-${conversation.id}`
+    //       : `${conversation.role}-${conversation.id}`;
+
+    //   console.log(
+    //     "Message deleted event received:",
+    //     message_id,
+    //     conversationKey
+    //   );
+
+    //   // Check if current user is admin
+    //   const isAdmin = user?.type === "admin" || user?.type === "super_admin";
+
+    //   // Update conversationsCache
+    //   setConversationsCache((prevCache) => {
+    //     const newCache = new Map(prevCache);
+    //     const conversationData = newCache.get(conversationKey);
+
+    //     if (conversationData) {
+    //       const updatedMessages = conversationData.messages.map((msg) => {
+    //         if (msg._id === message_id) {
+    //           if (isAdmin) {
+    //             // Admin: Keep original content but mark as deleted
+    //             return {
+    //               ...msg,
+    //               is_deleted: true,
+    //             };
+    //           } else {
+    //             // Normal user: Replace content with placeholder
+    //             return {
+    //               ...msg,
+    //               is_deleted: true,
+    //               content: {
+    //                 text: "This message was deleted",
+    //                 image: null,
+    //                 file: null,
+    //               },
+    //             };
+    //           }
+    //         }
+    //         return msg;
+    //       });
+
+    //       newCache.set(conversationKey, {
+    //         ...conversationData,
+    //         messages: updatedMessages,
+    //       });
+    //     }
+    //     console.log(
+    //       "updated conversation after deletion:",
+    //       newCache.get(conversationKey)
+    //     );
+    //     return newCache;
+    //   });
+
+    //   // Update conversationsList if the deleted message was the last message
+    //   setConversationsList((prevList) => {
+    //     return prevList.map((conv) => {
+    //       const convKey = `${conv.type}-${conv.id}`;
+
+    //       if (convKey === conversationKey) {
+    //         // Get the conversation cache to check if deleted message is last message
+    //         setConversationsCache((cache) => {
+    //           const conversationData = cache.get(conversationKey);
+
+    //           if (conversationData && conversationData.messages.length > 0) {
+    //             // Find the last message
+    //             const lastMessage =
+    //               conversationData.messages[
+    //                 conversationData.messages.length - 1
+    //               ];
+
+    //             // If the deleted message was the last message, update the conversation list
+    //             if (lastMessage._id === message_id) {
+    //               // This will be reflected in the next render
+    //               setTimeout(() => {
+    //                 setConversationsList((prevList) =>
+    //                   prevList.map((c) => {
+    //                     if (c.id === conv.id && c.type === conv.type) {
+    //                       return {
+    //                         ...c,
+    //                         last_message: isAdmin
+    //                           ? c.last_message // Keep original for admin
+    //                           : "This message was deleted", // Replace for normal user
+    //                         last_message_is_deleted: true,
+    //                       };
+    //                     }
+    //                     return c;
+    //                   })
+    //                 );
+    //               }, 0);
+    //             }
+    //           }
+    //           return cache;
+    //         });
+    //       }
+    //       return conv;
+    //     });
+    //   });
+    // }
+
+    // --- HANDLE MESSAGE DELETION ---
     if (lastEvent.event === "message_deleted") {
       const { message_id, conversation } = lastEvent;
 
@@ -320,7 +429,7 @@ export default function ChatPage() {
       // Check if current user is admin
       const isAdmin = user?.type === "admin" || user?.type === "super_admin";
 
-      // Update conversationsCache
+      // Update conversationsCache (if it exists)
       setConversationsCache((prevCache) => {
         const newCache = new Map(prevCache);
         const conversationData = newCache.get(conversationKey);
@@ -355,53 +464,26 @@ export default function ChatPage() {
             messages: updatedMessages,
           });
         }
-        console.log(
-          "updated conversation after deletion:",
-          newCache.get(conversationKey)
-        );
+
         return newCache;
       });
 
-      // Update conversationsList if the deleted message was the last message
+      // Update conversationsList - check if deleted message is the last message
       setConversationsList((prevList) => {
         return prevList.map((conv) => {
           const convKey = `${conv.type}-${conv.id}`;
 
           if (convKey === conversationKey) {
-            // Get the conversation cache to check if deleted message is last message
-            setConversationsCache((cache) => {
-              const conversationData = cache.get(conversationKey);
-
-              if (conversationData && conversationData.messages.length > 0) {
-                // Find the last message
-                const lastMessage =
-                  conversationData.messages[
-                    conversationData.messages.length - 1
-                  ];
-
-                // If the deleted message was the last message, update the conversation list
-                if (lastMessage._id === message_id) {
-                  // This will be reflected in the next render
-                  setTimeout(() => {
-                    setConversationsList((prevList) =>
-                      prevList.map((c) => {
-                        if (c.id === conv.id && c.type === conv.type) {
-                          return {
-                            ...c,
-                            last_message: isAdmin
-                              ? c.last_message // Keep original for admin
-                              : "This message was deleted", // Replace for normal user
-                            last_message_is_deleted: true,
-                          };
-                        }
-                        return c;
-                      })
-                    );
-                  }, 0);
-                }
-              }
-              return cache;
-            });
+            // Check if the deleted message_id matches the last_message_id
+            if (conv.last_message_id === message_id) {
+              return {
+                ...conv,
+                last_message: isAdmin
+                  ? conv.last_message // Keep original for admin
+                  : "This message was deleted", // Replace for normal user
+                last_message_is_deleted: true,
+              };
+            }
           }
           return conv;
         });

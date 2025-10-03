@@ -44,6 +44,7 @@ export interface Conversation {
   name: string;
   full_name: string | null;
   type: "user" | "admin" | "group";
+  last_message_id?: string;
   last_message: string;
   last_message_is_deleted?: boolean;
   timestamp: string;

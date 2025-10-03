@@ -1,6 +1,7 @@
 # app/schemas/user.py
-from pydantic import BaseModel, Field
-from typing import List, Union, Optional
+from pydantic import BaseModel, Field, BeforeValidator
+from typing import List, Union, Optional, Annotated
+from bson import ObjectId
 import datetime
 from .group import GroupOut
 
@@ -46,12 +47,14 @@ class SearchResult(BaseModel):
     admins: List[AdminOut]
     groups: List[GroupOut] 
 
+PyObjectId = Annotated[str, BeforeValidator(str)]
 # Schemas for the conversation list
 class ConversationPartner(BaseModel):
     id: int
     name: str
     full_name: Optional[str] = None
     type: str # "user", "group", or "admin"
+    last_message_id: Optional[PyObjectId] = None
     last_message: str
     last_message_is_deleted: Optional[bool] = False
     timestamp: datetime.datetime

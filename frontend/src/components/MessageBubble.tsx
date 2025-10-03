@@ -309,6 +309,101 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     );
   }
 
+  // return (
+  //   <>
+  //     <div className={`flex flex-col ${alignmentClasses} mb-2 group`}>
+  //       {showSenderInfo && (
+  //         <div className={`flex items-center gap-2 mb-1 ${nameOrderClasses}`}>
+  //           <Avatar
+  //             name={message.sender.username}
+  //             className="w-8 h-8 text-xs"
+  //           />
+  //           <span className="text-sm font-semibold text-muted-foreground">
+  //             {message.sender.username}
+  //           </span>
+  //         </div>
+  //       )}
+
+  //       <div className={`${showSenderInfo ? "ml-10" : ""} relative`}>
+  //         <div
+  //           className={`max-w-md lg:max-w-lg px-3 py-2 rounded-lg ${bubbleColor} shadow-md`}
+  //         >
+  //           {/* Three dots menu - only show for messages sent by current user */}
+  //           {isSentByCurrentUser && (
+  //             <div
+  //               className="absolute -right-8 top-1 opacity-0 group-hover:opacity-100 transition-opacity"
+  //               ref={menuRef}
+  //             >
+  //               <button
+  //                 onClick={() => setShowDeleteMenu(!showDeleteMenu)}
+  //                 className="p-1 rounded-full hover:bg-muted"
+  //                 aria-label="Message options"
+  //               >
+  //                 <MoreVertical size={16} className="text-muted-foreground" />
+  //               </button>
+
+  //               {/* Delete dropdown menu */}
+  //               {showDeleteMenu && (
+  //                 <div className="absolute right-0 mt-1 bg-background rounded-lg shadow-lg border border-border py-1 w-36 z-10">
+  //                   <button
+  //                     onClick={handleDeleteClick}
+  //                     className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+  //                   >
+  //                     <Trash2 size={14} />
+  //                     Delete Message
+  //                   </button>
+  //                 </div>
+  //               )}
+  //             </div>
+  //           )}
+
+  //           {hasAttachment && (
+  //             <div className="mb-2">
+  //               {message.content.image && (
+  //                 <img
+  //                   src={message.content.image}
+  //                   alt="Attachment"
+  //                   className="rounded-lg max-w-xs cursor-pointer"
+  //                   onClick={() => setIsModalOpen(true)}
+  //                 />
+  //               )}
+  //               {message.content.file && (
+  //                 <FileAttachmentDisplay
+  //                   fileUrl={message.content.file}
+  //                   fileName={getFileNameFromUrl(message.content.file)}
+  //                 />
+  //               )}
+  //             </div>
+  //           )}
+  //           {hasText && (
+  //             <p className="text-foreground text-sm whitespace-pre-wrap break-words">
+  //               {message.content.text}
+  //             </p>
+  //           )}
+  //           <div className="flex items-center justify-end mt-1">
+  //             {isAdmin && message.is_deleted && (
+  //               <span className="text-xs text-red-400 italic mr-2">
+  //                 (Deleted)
+  //               </span>
+  //             )}
+  //             <span className="text-xs text-muted-foreground/80">
+  //               {formatTimestampIST(message.timestamp)}
+  //             </span>
+  //             {isSentByCurrentUser && <MessageStatus status={message.status} />}
+  //           </div>
+  //         </div>
+  //       </div>
+  //     </div>
+
+  //     {isModalOpen && message.content.image && (
+  //       <ImageModal
+  //         imageUrl={message.content.image}
+  //         onClose={() => setIsModalOpen(false)}
+  //       />
+  //     )}
+  //   </>
+  // );
+
   return (
     <>
       <div className={`flex flex-col ${alignmentClasses} mb-2 group`}>
@@ -326,17 +421,22 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
         <div className={`${showSenderInfo ? "ml-10" : ""} relative`}>
           <div
-            className={`max-w-md lg:max-w-lg px-3 py-2 rounded-lg ${bubbleColor} shadow-md`}
+            // **FIXED: Added 'relative' to the bubble for absolute positioning**
+            className={`max-w-md lg:max-w-lg px-3 py-2 rounded-lg ${bubbleColor} shadow-md relative`}
           >
             {/* Three dots menu - only show for messages sent by current user */}
             {isSentByCurrentUser && (
+              // **FIXED: Positioning to top-right corner of the bubble**
               <div
-                className="absolute -right-8 top-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity z-20"
                 ref={menuRef}
               >
                 <button
-                  onClick={() => setShowDeleteMenu(!showDeleteMenu)}
-                  className="p-1 rounded-full hover:bg-muted"
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevent message text selection/other clicks
+                    setShowDeleteMenu((prev) => !prev);
+                  }}
+                  className="p-1 rounded-full bg-background/80 hover:bg-background shadow-sm border border-transparent hover:border-border"
                   aria-label="Message options"
                 >
                   <MoreVertical size={16} className="text-muted-foreground" />
@@ -344,13 +444,16 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
                 {/* Delete dropdown menu */}
                 {showDeleteMenu && (
-                  <div className="absolute right-0 mt-1 bg-background rounded-lg shadow-lg border border-border py-1 w-36 z-10">
+                  <div
+                    className="absolute right-0 mt-1 rounded-lg shadow-lg border border-border py-1 w-36 z-30"
+                    onClick={(e) => e.stopPropagation()} // Keep menu open when clicking inside
+                  >
                     <button
                       onClick={handleDeleteClick}
-                      className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                      className="w-full px-2 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
                     >
                       <Trash2 size={14} />
-                      Delete Message
+                      Delete
                     </button>
                   </div>
                 )}

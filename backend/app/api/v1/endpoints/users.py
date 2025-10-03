@@ -184,6 +184,7 @@ async def get_user_conversations(
     for msg in sorted(latest_messages, key=lambda x: x['timestamp'], reverse=True):
         last_message_text = msg.get("content", {}).get("text", "[Attachment]")
         message_is_deleted = msg.get("is_deleted")
+        last_message_id = msg.get("_id")
         
         if msg['type'] == 'private':
             partner = msg['receiver'] if msg['sender']['id'] == entity_id and msg['sender']['role'] == entity_role else msg['sender']
@@ -198,6 +199,7 @@ async def get_user_conversations(
                     name=partner_details.username,
                     full_name=partner_details.full_name, # <-- ADDED FULL NAME
                     type=partner['role'],
+                    last_message_id=last_message_id,
                     last_message=last_message_text,
                     last_message_is_deleted=message_is_deleted,
                     timestamp=msg['timestamp']
@@ -209,6 +211,7 @@ async def get_user_conversations(
                 name=group['name'],
                 full_name=None, # Groups don't have a full_name
                 type='group',
+                last_message_id=last_message_id,
                 last_message=last_message_text,
                 last_message_is_deleted=message_is_deleted,
                 timestamp=msg['timestamp']
