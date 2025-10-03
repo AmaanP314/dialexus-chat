@@ -9,6 +9,8 @@ class GroupMember(Base):
     user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"), primary_key=True)
     is_admin = Column(Boolean, default=False)
     joined_at = Column(DateTime, default=datetime.datetime.utcnow)
+    is_member_active = Column(Boolean, nullable=False, default=True)
+    removed_at = Column(DateTime, nullable=True)
 
     group = relationship("Group", back_populates="members")
     user = relationship("User", back_populates="groups")

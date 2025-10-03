@@ -26,6 +26,8 @@ class Settings:
     MONGO_DATABASE_URL: str = os.getenv("MONGO_DATABASE_URL")
     MONGO_DB_NAME: str = os.getenv("MONGO_DB_NAME", "chat_app")
 
+    # Redis settings
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
 
     # JWT settings
     SECRET_KEY: str = os.getenv("SECRET_KEY", "a_very_secret_key")

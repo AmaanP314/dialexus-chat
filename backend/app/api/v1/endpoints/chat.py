@@ -214,7 +214,7 @@ async def websocket_endpoint(
                         {"$addToSet": {"read_by": reader_identity}}
                     )
                     updated_count = update_result.modified_count
-                    print(f"{token_data.role} {entity.id} read {updated_count} messages.")
+                    # print(f"{token_data.role} {entity.id} read {updated_count} messages.")
 
                     # --- INSTRUCTION 3: Send the new 'messages_now_read' event ---
                     if updated_count > 0 and message_sender:
@@ -225,58 +225,6 @@ async def websocket_endpoint(
                             "reader": reader_identity
                         })
                         await manager.send_personal_message(read_notification, sender_connection_id)
-
-
-            # if event_type == "new_message":
-            #     raw_content = message_data.get("content")
-            #     if isinstance(raw_content, dict):
-            #         content_obj = raw_content
-            #     else:
-            #         continue
-
-            #     mongo_message = {
-            #         "type": message_data.get("type"),
-            #         "sender": {"id": entity.id, "role": token_data.role, "username": entity.username},
-            #         "content": content_obj,
-            #         "timestamp": datetime.now(pytz.timezone('Asia/Kolkata')),
-            #         "read_by": [entity.id], 
-            #         # "status": "sent",
-            #         "is_deleted": False
-            #     }
-            #     mongo_message["read_by"] = [{"id": entity.id, "role": token_data.role}]
-
-            #     if mongo_message["type"] == "private":
-            #         receiver_info = message_data.get("receiver")
-            #         if not receiver_info: continue
-                    
-            #         mongo_message["receiver"] = {
-            #             "id": receiver_info['id'],
-            #             "role": receiver_info['role'],
-            #             "username": receiver_info['username']
-            #         }
-                    
-            #         result = await messages_collection.insert_one(mongo_message)
-            #         mongo_message["_id"] = str(result.inserted_id)
-            #         mongo_message["event"] = "new_message"
-            #         receiver_connection_id = f"{receiver_info['role']}-{receiver_info['id']}"
-            #         await manager.broadcast_to_users(json.dumps(mongo_message, default=str), [receiver_connection_id])
-
-            #     elif mongo_message["type"] == "group":
-            #         group_info = message_data.get("group")
-            #         if not group_info: continue
-                    
-            #         mongo_message["group"] = {
-            #             "id": group_info["id"],
-            #             "name": group_info["name"]
-            #         }
-
-            #         result = await messages_collection.insert_one(mongo_message)
-            #         mongo_message["_id"] = str(result.inserted_id)
-            #         mongo_message["event"] = "new_message"
-            #         member_ids = get_group_members(group_info["id"], db=db)
-            #         connections = set(member_ids)
-            #         connections.discard(connection_id_str)
-            #         await manager.broadcast_to_users(json.dumps(mongo_message, default=str), list(connections))
 
             if event_type == "new_message":
                 # Get all necessary data from the payload
@@ -347,7 +295,7 @@ async def websocket_endpoint(
                     })
                     await manager.send_personal_message(ack_payload, connection_id_str)
                     # print(f"Sent acknowledgment for temp_id {temp_id} to user {entity.id}")
-                    print(ack_payload)
+                    # print(ack_payload)
 
 
             if event_type == "delete_message":
@@ -418,15 +366,3 @@ async def websocket_endpoint(
         manager.disconnect(connection_id_str)
         await broadcast_presence_update(tenant_id, entity.id, token_data.role, "offline", db)
         update_last_seen(entity.id, token_data.role)
-
-# {
-#   "event": "message_acknowledged",
-#   "temp_id": "temp-1759374037043",
-#   "new_id": "67f1b2c3d4e5f6a7b8c9d0e1",
-#   "timestamp": "2025-10-02T10:30:00.123Z",
-#   "conversation": {
-#     "type": "private", # or "group"
-#     "id": 42,
-#     "role": "user" # or admin or null for group messages
-#   }
-# }
