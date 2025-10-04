@@ -500,7 +500,7 @@ export default function ChatPage() {
 
     setIsLoadingMessages((prev) => new Map(prev).set(compositeKey, true));
     try {
-      const response = await getMessages(selectedConversation, 10, nextCursor);
+      const response = await getMessages(selectedConversation, 50, nextCursor);
       const newMessages = response.messages.reverse();
 
       setConversationsCache((prevCache) => {

@@ -6,6 +6,7 @@ import React, {
   useEffect,
   useState,
   useMemo,
+  useLayoutEffect,
 } from "react";
 import {
   MoreVertical,
@@ -67,6 +68,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Refs for scroll management
+  const scrollHeightBeforeLoad = useRef<number | null>(null);
+  const prevMessagesLength = useRef(0);
 
   const { presence } = usePresence();
   const userKey = `${conversation.type}-${conversation.id}`;
@@ -188,6 +193,11 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
       if (observer.current) observer.current.disconnect();
       observer.current = new IntersectionObserver((entries) => {
         if (entries[0].isIntersecting) {
+          if (chatContainerRef.current) {
+            // Store scroll height before new messages are loaded
+            scrollHeightBeforeLoad.current =
+              chatContainerRef.current.scrollHeight;
+          }
           onLoadMore();
         }
       });
@@ -197,9 +207,33 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
   );
   const isChatDisabled =
     conversation.type === "group" && conversation.is_member_active === false;
-  // Scroll to bottom on initial load or when a new message is added
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView();
+  // This effect manages all scroll behavior:
+  // 1. Preserves scroll position when loading older messages (pagination).
+  // 2. Scrolls to bottom on initial load.
+  // 3. Scrolls to bottom when a new message is added.
+  // 4. Does nothing when a message is deleted.
+  useLayoutEffect(() => {
+    if (scrollHeightBeforeLoad.current !== null && chatContainerRef.current) {
+      // This is pagination: restore previous scroll position
+      const newScrollHeight = chatContainerRef.current.scrollHeight;
+      chatContainerRef.current.scrollTop =
+        newScrollHeight - scrollHeightBeforeLoad.current;
+      scrollHeightBeforeLoad.current = null; // Reset after adjusting
+    } else {
+      // This is not pagination, check for new messages or initial load
+      const isInitialLoad =
+        prevMessagesLength.current === 0 && messages.length > 0;
+      const isNewMessageAdded = messages.length > prevMessagesLength.current;
+
+      if (isInitialLoad) {
+        bottomRef.current?.scrollIntoView();
+      } else if (isNewMessageAdded) {
+        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      }
+    }
+
+    // Update previous length for the next render.
+    prevMessagesLength.current = messages.length;
   }, [messages]);
 
   return (
