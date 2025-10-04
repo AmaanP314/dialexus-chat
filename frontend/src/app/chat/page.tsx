@@ -4,7 +4,7 @@ import React, { useState, useCallback, useEffect } from "react";
 import Sidebar from "@/components/Sidebar";
 import ChatWindow from "@/components/ChatWindow";
 import {
-  Conversation,
+  Conversation as BaseConversation,
   ConversationCache,
   Message,
   RealtimeMessage,
@@ -14,7 +14,30 @@ import { MessageSquareText } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useSocket } from "@/context/SocketContext";
 import { useNotification } from "@/context/NotificationContext";
-import { getMessages, getConversations } from "@/lib/api";
+import {
+  getMessages,
+  getConversations,
+  pinConversation,
+  unpinConversation,
+} from "@/lib/api";
+
+export interface Conversation extends BaseConversation {
+  is_pinned?: boolean;
+}
+
+// Helper function to sort conversations: pinned first, then by timestamp
+const sortConversations = (conversations: Conversation[]): Conversation[] => {
+  const pinned = conversations.filter((c) => c.is_pinned);
+  const unpinned = conversations.filter((c) => !c.is_pinned);
+
+  const sortByTimestamp = (a: Conversation, b: Conversation) =>
+    new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+
+  pinned.sort(sortByTimestamp);
+  unpinned.sort(sortByTimestamp);
+
+  return [...pinned, ...unpinned];
+};
 
 export default function ChatPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -41,6 +64,41 @@ export default function ChatPage() {
       });
     }
   }, [user]);
+
+  const handleTogglePin = async (conversationToToggle: Conversation) => {
+    const isCurrentlyPinned = !!conversationToToggle.is_pinned;
+
+    // Optimistic UI update
+    setConversationsList((prevList) => {
+      const updatedList = prevList.map((c) =>
+        c.id === conversationToToggle.id && c.type === conversationToToggle.type
+          ? { ...c, is_pinned: !isCurrentlyPinned }
+          : c
+      );
+      return sortConversations(updatedList);
+    });
+
+    try {
+      const apiCall = isCurrentlyPinned ? unpinConversation : pinConversation;
+      const response = await apiCall(conversationToToggle);
+
+      if (!response.ok) {
+        throw new Error("Failed to update pin status");
+      }
+    } catch (error) {
+      console.error("Failed to toggle pin:", error);
+      // Revert on error
+      setConversationsList((prevList) => {
+        const revertedList = prevList.map((c) =>
+          c.id === conversationToToggle.id &&
+          c.type === conversationToToggle.type
+            ? { ...c, is_pinned: isCurrentlyPinned } // Revert back
+            : c
+        );
+        return sortConversations(revertedList);
+      });
+    }
+  };
 
   const handleDeleteMessage = (messageId: string) => {
     if (!selectedConversation || !user) return;
@@ -144,12 +202,14 @@ export default function ChatPage() {
 
         if (existingConvoIndex > -1) {
           const existingConvo = updatedList[existingConvoIndex];
-          existingConvo.last_message = msg.content.text || "[attachment]";
-          existingConvo.last_message_id = msg._id;
-          existingConvo.timestamp = msg.timestamp;
-          existingConvo.last_message_is_deleted = false; // *** ADD THIS LINE ***
-          updatedList.splice(existingConvoIndex, 1);
-          updatedList.unshift(existingConvo);
+          const updatedConvo = {
+            ...existingConvo,
+            last_message: msg.content.text || "[attachment]",
+            last_message_id: msg._id,
+            timestamp: msg.timestamp,
+            last_message_is_deleted: false,
+          };
+          updatedList[existingConvoIndex] = updatedConvo;
         } else {
           const newConvo: Conversation = {
             id: convoIdentifier.id,
@@ -159,11 +219,12 @@ export default function ChatPage() {
             last_message: msg.content.text || "[attachment]",
             last_message_id: msg._id,
             timestamp: msg.timestamp,
-            last_message_is_deleted: false, // *** ADD THIS LINE ***
+            last_message_is_deleted: false,
+            is_pinned: false, // New conversations are never pinned
           };
           updatedList.unshift(newConvo);
         }
-        return updatedList;
+        return sortConversations(updatedList);
       });
     },
     [user?.id]
@@ -545,6 +606,7 @@ export default function ChatPage() {
         conversations={conversationsList}
         onConversationSelect={handleConversationSelect}
         selectedConversation={selectedConversation}
+        onTogglePin={handleTogglePin}
       />
       {selectedConversation ? (
         <ChatWindow

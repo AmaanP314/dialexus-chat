@@ -47,6 +47,7 @@ export interface Conversation {
   last_message_is_deleted?: boolean;
   timestamp: string;
   is_member_active?: boolean;
+  is_pinned?: boolean;
 }
 
 export interface ConversationsResponse {

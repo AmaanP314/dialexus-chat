@@ -59,6 +59,7 @@ class ConversationPartner(BaseModel):
     last_message_is_deleted: Optional[bool] = False
     timestamp: datetime.datetime
     is_member_active: bool = True
+    is_pinned: bool = False
 
 class ConversationList(BaseModel):
     conversations: List[ConversationPartner]

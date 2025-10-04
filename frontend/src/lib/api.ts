@@ -301,3 +301,33 @@ export const changePassword = async (
     }),
   });
 };
+
+export const pinConversation = async (
+  conversation: Conversation
+): Promise<Response> => {
+  return apiFetch("/pins/conversations/pin", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      conversation_id: conversation.id,
+      conversation_type: conversation.type === "group" ? "group" : "private",
+      conversation_role:
+        conversation.type === "group" ? null : conversation.type,
+    }),
+  });
+};
+
+export const unpinConversation = async (
+  conversation: Conversation
+): Promise<Response> => {
+  return apiFetch("/pins/conversations/unpin", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      conversation_id: conversation.id,
+      conversation_type: conversation.type === "group" ? "group" : "private",
+      conversation_role:
+        conversation.type === "group" ? null : conversation.type,
+    }),
+  });
+};

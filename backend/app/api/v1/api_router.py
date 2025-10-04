@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, users, admin, super_admin, chat, messages, notifications
+from app.api.v1.endpoints import auth, users, admin, super_admin, chat, messages, notifications, pins
 
 api_router = APIRouter()
 
@@ -11,3 +11,4 @@ api_router.include_router(super_admin.router, prefix="/super-admin", tags=["Supe
 api_router.include_router(messages.router, prefix="/messages", tags=["Message History"])
 api_router.include_router(chat.router, prefix="/chat", tags=["Real-Time Chat"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
+api_router.include_router(pins.router, prefix="/pins", tags=["pins"]) 

@@ -8,12 +8,14 @@ interface ConversationListProps {
   conversations: Conversation[];
   onConversationSelect: (conversation: Conversation) => void;
   selectedConversation: Conversation | null;
+  onTogglePin: (conversation: Conversation) => void;
 }
 
 const ConversationList: React.FC<ConversationListProps> = ({
   conversations,
   onConversationSelect,
   selectedConversation,
+  onTogglePin,
 }) => {
   if (!conversations) {
     return (
@@ -32,6 +34,7 @@ const ConversationList: React.FC<ConversationListProps> = ({
             selectedConversation?.type === convo.type
           }
           onClick={() => onConversationSelect(convo)}
+          onTogglePin={onTogglePin}
         />
       ))}
     </div>

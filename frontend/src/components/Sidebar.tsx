@@ -28,12 +28,14 @@ interface SidebarProps {
   conversations: Conversation[];
   onConversationSelect: (conversation: Conversation) => void;
   selectedConversation: Conversation | null;
+  onTogglePin: (conversation: Conversation) => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
   conversations,
   onConversationSelect,
   selectedConversation,
+  onTogglePin,
 }) => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResults | null>(null);
@@ -142,6 +144,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             onConversationSelect={onConversationSelect}
             // selectedConversationId={selectedConversationId}
             selectedConversation={selectedConversation}
+            onTogglePin={onTogglePin}
           />
         )}
       </div>

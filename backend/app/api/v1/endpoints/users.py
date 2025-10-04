@@ -6,7 +6,7 @@ from typing import Union
 
 from app.db.session import get_db, get_mongo_db
 from app.security.dependencies import get_current_user_from_cookie
-from app.models import User, Admin, SuperAdmin, Group, GroupMember
+from app.models import User, Admin, SuperAdmin, Group, GroupMember, PinnedConversation
 
 
 from app.schemas.user import SearchResult, ConversationList, ConversationPartner, MeProfileOut, PasswordUpdate, FullNameUpdate 
@@ -219,6 +219,130 @@ def search_for_entities(
 
 #     return {"conversations": conversations}
 
+# @router.get("/conversations", response_model=ConversationList)
+# async def get_user_conversations(
+#     current_entity: Union[User, Admin] = Depends(get_current_user_from_cookie),
+#     db: Session = Depends(get_db),
+#     mongo_db: AsyncIOMotorClient = Depends(get_mongo_db)
+# ):
+#     messages_collection = mongo_db["messages"]
+    
+#     entity_id = current_entity.id
+#     entity_role = "admin" if isinstance(current_entity, Admin) else "user"
+
+#     # --- 1. Fetch Detailed Group Membership Info ---
+#     memberships_map = {}
+#     if isinstance(current_entity, User):
+#         memberships = db.query(GroupMember).filter_by(user_id=entity_id).all()
+#         memberships_map = {m.group_id: m for m in memberships}
+#     elif isinstance(current_entity, Admin):
+#         groups = db.query(Group).filter_by(admin_id=entity_id).all()
+#         for group in groups:
+#             mock_membership = GroupMember(group_id=group.id, is_member_active=True, removed_at=None)
+#             memberships_map[group.id] = mock_membership
+
+#     # --- 2. Dynamically Build the Match Query ---
+#     match_conditions = [
+#         {"sender.id": entity_id, "sender.role": entity_role},
+#         {"receiver.id": entity_id, "receiver.role": entity_role},
+#     ]
+
+#     active_group_ids = [gid for gid, m in memberships_map.items() if m.is_member_active]
+#     if active_group_ids:
+#         match_conditions.append({"group.id": {"$in": active_group_ids}})
+
+#     inactive_memberships = [m for m in memberships_map.values() if not m.is_member_active]
+#     for m in inactive_memberships:
+#         if m.removed_at:
+#             match_conditions.append({
+#                 "group.id": m.group_id,
+#                 "timestamp": {"$lt": m.removed_at}
+#             })
+
+#     pipeline = [
+#         {"$match": {"$or": match_conditions}},
+#         {"$sort": {"timestamp": -1}},
+#         {"$group": {
+#             "_id": {
+#                 "$cond": {
+#                     "if": {"$eq": ["$type", "private"]},
+#                     "then": {
+#                         "participants": {
+#                             "$sortArray": { "input": [ "$sender", "$receiver" ], "sortBy": { "id": 1 } }
+#                         }
+#                     },
+#                     "else": "$group.id"
+#                 }
+#             },
+#             "last_message_doc": {"$first": "$$ROOT"}
+#         }},
+#         {"$replaceRoot": {"newRoot": "$last_message_doc"}}
+#     ]
+
+#     latest_messages = await messages_collection.aggregate(pipeline).to_list(length=None)
+    
+#     # --- EFFICIENTLY FETCH FULL NAMES ---
+#     user_ids_to_fetch = set()
+#     admin_ids_to_fetch = set()
+#     for msg in latest_messages:
+#         if msg['type'] == 'private':
+#             partner = msg['receiver'] if msg['sender']['id'] == entity_id and msg['sender']['role'] == entity_role else msg['sender']
+#             if partner['role'] == 'user':
+#                 user_ids_to_fetch.add(partner['id'])
+#             elif partner['role'] == 'admin':
+#                 admin_ids_to_fetch.add(partner['id'])
+
+#     users_data = db.query(User.id, User.username, User.full_name).filter(User.id.in_(user_ids_to_fetch)).all()
+#     admins_data = db.query(Admin.id, Admin.username, Admin.full_name).filter(Admin.id.in_(admin_ids_to_fetch)).all()
+    
+#     details_map = {f"user-{u.id}": u for u in users_data}
+#     details_map.update({f"admin-{a.id}": a for a in admins_data})
+
+#     # --- BUILD THE FINAL RESPONSE ---
+#     conversations = []
+#     for msg in sorted(latest_messages, key=lambda x: x['timestamp'], reverse=True):
+#         last_message_text = msg.get("content", {}).get("text")
+#         if not last_message_text:
+#             if msg.get("content", {}).get("image") or msg.get("content", {}).get("file"):
+#                 last_message_text = "[Attachment]"
+#             else:
+#                 last_message_text = ""
+        
+#         if msg['type'] == 'private':
+#             partner = msg['receiver'] if msg['sender']['id'] == entity_id and msg['sender']['role'] == entity_role else msg['sender']
+#             partner_key = f"{partner['role']}-{partner['id']}"
+#             partner_details = details_map.get(partner_key)
+
+#             if partner_details:
+#                 conversations.append(ConversationPartner(
+#                     id=partner_details.id,
+#                     name=partner_details.username,
+#                     full_name=partner_details.full_name,
+#                     type=partner['role'],
+#                     last_message_id=msg["_id"],
+#                     last_message=last_message_text,
+#                     last_message_is_deleted=msg.get("is_deleted", False),
+#                     timestamp=msg['timestamp'],
+#                     is_member_active=True # Always true for private chats
+#                 ))
+#         elif msg['type'] == 'group':
+#             group = msg['group']
+#             membership = memberships_map.get(group['id'])
+            
+#             conversations.append(ConversationPartner(
+#                 id=group['id'],
+#                 name=group['name'],
+#                 full_name=None,
+#                 type='group',
+#                 last_message_id=msg["_id"],
+#                 last_message=last_message_text,
+#                 last_message_is_deleted=msg.get("is_deleted", False),
+#                 timestamp=msg['timestamp'],
+#                 is_member_active=membership.is_member_active if membership else False
+#             ))
+
+#     return {"conversations": conversations}
+
 @router.get("/conversations", response_model=ConversationList)
 async def get_user_conversations(
     current_entity: Union[User, Admin] = Depends(get_current_user_from_cookie),
@@ -229,6 +353,20 @@ async def get_user_conversations(
     
     entity_id = current_entity.id
     entity_role = "admin" if isinstance(current_entity, Admin) else "user"
+
+    # --- 1. FETCH PINNED CONVERSATIONS FOR THE CURRENT USER ---
+    pinned_items = db.query(PinnedConversation).filter_by(pinner_id=entity_id, pinner_role=entity_role).all()
+    
+    # Create a fast lookup set for O(1) checking.
+    # The format is designed to uniquely identify each conversation.
+    # pinned_set = {
+    #     f"{pin.conversation_type}-{pin.conversation_id}" + (f"-{pin.conversation_role}" if pin.conversation_role else "")
+    #     for pin in pinned_items
+    # }
+    pinned_set = {
+        f"{pin.conversation_role or pin.conversation_type}-{pin.conversation_id}" for pin in pinned_items
+    }
+    print("Pinned Set:", pinned_set)
 
     # --- 1. Fetch Detailed Group Membership Info ---
     memberships_map = {}
@@ -340,8 +478,29 @@ async def get_user_conversations(
                 timestamp=msg['timestamp'],
                 is_member_active=membership.is_member_active if membership else False
             ))
+    
+    pinned_list = []
+    unpinned_list = []
 
-    return {"conversations": conversations}
+    for conv in conversations:
+        # Create a unique key for the conversation to check against the pinned_set
+        conv_key = f"{conv.type}-{conv.id}"
+        print(conv_key)
+        # if conv.type == 'private':
+        #      # For private chats, the role is the partner's role, which is stored in conv.type
+        #     conv_key += f"-{conv.type}"
+        #     print(f"Private conv_key: {conv_key}")
+
+        if conv_key in pinned_set:
+            conv.is_pinned = True
+            pinned_list.append(conv)
+        else:
+            conv.is_pinned = False
+            unpinned_list.append(conv)
+    
+    final_conversations = pinned_list + unpinned_list
+
+    return {"conversations": final_conversations}
 
 
 
