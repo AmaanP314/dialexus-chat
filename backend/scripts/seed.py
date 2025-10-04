@@ -43,6 +43,9 @@ def seed_data():
         # --- 1. Create Super Admin ---
         super_admin_username = settings.SUPER_ADMIN_USERNAME
         super_admin_password = settings.SUPER_ADMIN_PASSWORD
+
+        print(f"DEBUG: The password being hashed has a length of {len(super_admin_password)} characters.")
+        print(f"DEBUG: The password being hashed is: {super_admin_password}")
         
         hashed_password = Hasher.get_password_hash(super_admin_password)
         new_super_admin = SuperAdmin(username=super_admin_username, password_hash=hashed_password)

@@ -5,7 +5,9 @@ SQLAlchemy
 motor
 pydantic[email]
 python-dotenv
-passlib[bcrypt]
+# passlib[bcrypt]
+passlib==2.5.0
+bcrypt==4.3.0
 python-jose[cryptography]
 python-multipart
 pytz
