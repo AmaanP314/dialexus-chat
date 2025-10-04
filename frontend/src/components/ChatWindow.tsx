@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useRef, useCallback, useEffect, useState } from "react";
+import React, {
+  useRef,
+  useCallback,
+  useEffect,
+  useState,
+  useMemo,
+} from "react";
 import {
   MoreVertical,
   Paperclip,
@@ -32,9 +38,13 @@ interface ChatWindowProps {
 }
 
 const DateHeader = ({ date }: { date: string }) => (
-  <div className="flex justify-center my-4 sticky top-4 z-10">
-    <div className="px-3 py-1 bg-muted/80 backdrop-blur-sm rounded-full text-xs text-muted-foreground shadow-sm">
-      {formatDateHeader(date)}
+  <div className="sticky top-0 z-10 py-2">
+    {" "}
+    {/* Transparent background */}
+    <div className="flex justify-center">
+      <div className="px-3 py-1 bg-background rounded-full text-xs text-muted-foreground shadow-sm">
+        {formatDateHeader(date)}
+      </div>
     </div>
   </div>
 );
@@ -61,6 +71,24 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
   const { presence } = usePresence();
   const userKey = `${conversation.type}-${conversation.id}`;
   const presenceInfo = presence[userKey];
+
+  // Group messages by date for sticky headers
+  const messageGroups = useMemo(() => {
+    const groups: { date: string; messages: Message[] }[] = [];
+    if (!messages.length) return groups;
+
+    let currentGroup: { date: string; messages: Message[] } | null = null;
+
+    for (const msg of messages) {
+      const msgDate = msg.timestamp.substring(0, 10);
+      if (!currentGroup || currentGroup.date !== msgDate) {
+        currentGroup = { date: msgDate, messages: [] };
+        groups.push(currentGroup);
+      }
+      currentGroup.messages.push(msg);
+    }
+    return groups;
+  }, [messages]);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -194,33 +222,29 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
         </div>
       </header>
 
-      <main ref={chatContainerRef} className="flex-grow p-4 overflow-y-auto">
-        <div ref={paginationTriggerRef} className="h-10 text-center">
+      <main ref={chatContainerRef} className="flex-grow overflow-y-auto">
+        <div ref={paginationTriggerRef} className="h-10 text-center px-4 pt-4">
           {isLoading && (
             <p className="text-muted-foreground">Loading older messages...</p>
           )}
         </div>
         <div>
-          {messages.map((msg, index) => {
-            const prevMsg = messages[index - 1];
-            const showDateHeader = !areDatesOnSameDay(
-              msg.timestamp,
-              prevMsg?.timestamp
-            );
-
-            return (
-              <React.Fragment key={msg._id}>
-                {showDateHeader && <DateHeader date={msg.timestamp} />}
-                <MessageBubble
-                  key={msg._id}
-                  message={msg}
-                  isSentByCurrentUser={msg.sender.id === user?.id}
-                  isGroupMessage={conversation.type === "group"}
-                  onDelete={onDeleteMessage}
-                />
-              </React.Fragment>
-            );
-          })}
+          {messageGroups.map(({ date, messages: dateMessages }) => (
+            <div key={date}>
+              <DateHeader date={date} />
+              <div className="px-4">
+                {dateMessages.map((msg) => (
+                  <MessageBubble
+                    key={msg._id}
+                    message={msg}
+                    isSentByCurrentUser={msg.sender.id === user?.id}
+                    isGroupMessage={conversation.type === "group"}
+                    onDelete={onDeleteMessage}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
         <div ref={bottomRef} />
       </main>
