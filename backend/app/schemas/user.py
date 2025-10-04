@@ -16,7 +16,6 @@ class MeProfileOut(BaseModel):
     full_name: Optional[str] = None
     type: str
     created_by: str
-    created_at: datetime.datetime
     admin_key: Optional[str] = None
 
 class UserOut(BaseModel):
@@ -24,6 +23,9 @@ class UserOut(BaseModel):
     username: str
     full_name: Optional[str] = None
     type: str = "User"
+    created_at: datetime.datetime
+    last_seen: datetime.datetime
+    is_active: bool
     
     class Config:
         orm_mode = True

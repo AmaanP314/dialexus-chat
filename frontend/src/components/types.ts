@@ -112,7 +112,11 @@ export interface AdminViewUser {
   id: number;
   username: string;
   full_name: string | null;
-  type: "User"; // Assuming it's always 'User' in this context
+  type: "User";
+  created_by: string;
+  created_at: string;
+  last_seen: string;
+  is_active: boolean;
 }
 
 // For /api/v1/admin/groups/* endpoints

@@ -7,6 +7,7 @@ import { InteractiveGroupTable } from "./InteractiveGroupTable";
 import { InteractiveUserTable } from "./InteractiveUserTable";
 import { AdminViewGroup } from "../types";
 import Avatar from "../Avatar"; // Make sure to import the Avatar component
+import { UserPlus, CheckCircle, AlertTriangle } from "lucide-react";
 
 const AddMember = () => {
   const {
@@ -45,10 +46,12 @@ const AddMember = () => {
     setIsError(false);
     try {
       await addGroupMember(selectedGroupId, selectedUserId);
-      setMessage("Member added successfully.");
+      setMessage(
+        `Successfully added user to group "${selectedGroup?.name || ""}".`
+      );
       refetchGroupLists(); // Refetch to get updated member list
     } catch (err) {
-      setMessage("Failed to add member.");
+      setMessage("Failed to add member. They may already be in the group.");
       setIsError(true);
     } finally {
       setIsLoading(false);
@@ -62,52 +65,42 @@ const AddMember = () => {
 
   return (
     <div className="space-y-8">
-      <h2 className="text-2xl font-bold text-foreground">
-        Add Member to Group
-      </h2>
+      <div className="flex items-center gap-3">
+        <div className="bg-primary/10 p-3 rounded-lg">
+          <UserPlus className="w-6 h-6 text-primary" />
+        </div>
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">
+            Add Member to Group
+          </h2>
+          <p className="text-muted-foreground text-sm">
+            Select a group, then choose a user to add as a member.
+          </p>
+        </div>
+      </div>
 
       {/* Step 1: Select a Group */}
       <div className="bg-background p-6 rounded-lg border border-border">
-        <h3 className="font-semibold mb-4 text-lg">1. Select a Group</h3>
+        <h3 className="font-semibold mb-4 text-lg">
+          <span className="text-primary font-bold">Step 1:</span> Select a Group
+        </h3>
         <InteractiveGroupTable
           groups={activeGroups}
-          onGroupSelect={setSelectedGroupId}
+          onGroupSelect={(id) => {
+            setSelectedGroupId(id);
+            setSelectedUserId(null); // Reset user selection when group changes
+            setMessage("");
+          }}
           selectedGroupId={selectedGroupId}
         />
       </div>
 
-      {/* Step 2: Display Current Members (if a group is selected) */}
+      {/* Step 2: Select a User to Add (if a group is selected) */}
       {selectedGroup && (
         <div className="bg-background p-6 rounded-lg border border-border">
           <h3 className="font-semibold mb-4 text-lg">
-            Current Members in "{selectedGroup.name}" (
-            {selectedGroup.members.length})
-          </h3>
-          {selectedGroup.members.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {selectedGroup.members.map((member) => (
-                <div
-                  key={member.user_id}
-                  className="flex items-center gap-2 bg-muted p-1 pr-3 rounded-full"
-                >
-                  <Avatar name={member.username} className="w-6 h-6 text-xs" />
-                  <span className="text-sm font-medium">{member.username}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              This group has no members yet.
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* Step 3: Select a User to Add (if a group is selected) */}
-      {selectedGroup && (
-        <div className="bg-background p-6 rounded-lg border border-border">
-          <h3 className="font-semibold mb-4 text-lg">
-            2. Select a User to Add
+            <span className="text-primary font-bold">Step 2:</span> Select a
+            User to Add to "{selectedGroup.name}"
           </h3>
           <InteractiveUserTable
             users={availableUsers}
@@ -117,23 +110,26 @@ const AddMember = () => {
         </div>
       )}
 
-      {/* Final Action Button */}
+      {/* Final Action Button & Message */}
       <div className="text-center pt-4">
         <button
           onClick={handleAddMember}
           disabled={!selectedGroupId || !selectedUserId || isLoading}
-          className="w-1/2 px-4 py-3 font-semibold text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full max-w-md px-4 py-3 font-semibold text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
         >
-          {isLoading ? "Adding..." : "Add Selected Member"}
+          {isLoading ? "Adding Member..." : "Add Selected Member to Group"}
         </button>
         {message && (
-          <p
-            className={`text-sm mt-4 ${
-              isError ? "text-red-500" : "text-green-500"
+          <div
+            className={`max-w-md mx-auto mt-4 flex items-center justify-center gap-2 p-3 rounded-lg text-sm ${
+              isError
+                ? "bg-red-900/30 text-red-300"
+                : "bg-green-900/50 text-green-300"
             }`}
           >
-            {message}
-          </p>
+            {isError ? <AlertTriangle size={18} /> : <CheckCircle size={18} />}
+            <span>{message}</span>
+          </div>
         )}
       </div>
     </div>

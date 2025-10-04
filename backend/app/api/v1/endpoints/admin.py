@@ -39,12 +39,13 @@ def create_user_for_admin(
     current_admin: Admin = Depends(get_admin_from_dependency)
 ):
     # ... (logic remains the same)
+    full_name = user_in.full_name if user_in.full_name else None
     full_username = f"{user_in.username}{current_admin.admin_key}"
     db_user = db.query(User).filter(User.username == full_username).first()
     if db_user:
         raise HTTPException(status_code=400, detail=f"Username '{user_in.username}' already exists in your tenant.")
     hashed_password = Hasher.get_password_hash(user_in.password)
-    new_user = User(username=full_username, password_hash=hashed_password, admin_id=current_admin.id)
+    new_user = User(full_name=full_name, username=full_username, password_hash=hashed_password, admin_id=current_admin.id)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)

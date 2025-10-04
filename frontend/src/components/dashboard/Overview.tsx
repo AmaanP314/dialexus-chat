@@ -48,7 +48,7 @@ export default function Overview() {
     <div>
       <header className="mb-8">
         <h1 className="text-3xl font-bold text-foreground">
-          Welcome back, {user?.username}!
+          Welcome back, {user?.full_name || user?.username}!
         </h1>
         <p className="text-muted-foreground">
           Here's a summary of your tenant system.
