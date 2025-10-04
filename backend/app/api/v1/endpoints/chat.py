@@ -6,8 +6,8 @@ from typing import Union
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, Query, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from motor.motor_asyncio import AsyncIOMotorClient
-
-from app.db.session import get_db, get_mongo_db
+import redis.asyncio as redis
+from app.db.session import get_db, get_mongo_db, get_redis_client
 from app.security.jwt import verify_token
 from app.models import User, Admin
 from app.websocket.connection_manager import manager
@@ -18,10 +18,11 @@ from app.db.session import get_db, get_mongo_db, SessionLocal
 
 router = APIRouter()
 
-async def broadcast_presence_update(tenant_id: int, user_id: int, role: str, status: str, db: Session):
+async def broadcast_presence_update(tenant_id: int, user_id: int, role: str, status: str, db: Session, redis_client: redis.Redis):
     """Broadcasts a user's online/offline status to all users in the same tenant using the cache."""
     # Use the cache to get the list of who to notify
-    broadcast_list = get_tenant_connection_ids(tenant_id, db)
+    # broadcast_list = get_tenant_connection_ids(tenant_id, db)
+    broadcast_list = await get_tenant_connection_ids(tenant_id, db, redis_client)
     
     payload = json.dumps({
         "event": "presence_update",
@@ -93,6 +94,8 @@ async def websocket_endpoint(
     db: Session = Depends(get_db),
     mongo_db: AsyncIOMotorClient = Depends(get_mongo_db)
 ):
+    # Get Redis client directly from application state
+    redis_client = websocket.app.state.redis_client
     try:
         # 1. Extract the access_token from the WebSocket's cookies
         token = websocket.cookies.get("access_token")
@@ -126,7 +129,8 @@ async def websocket_endpoint(
     tenant_id = entity.id if isinstance(entity, Admin) else entity.admin_id
     
     online_connection_ids = manager.get_all_connection_ids()
-    all_tenant_members = get_tenant_connection_ids(tenant_id, db)
+    # all_tenant_members = get_tenant_connection_ids(tenant_id, db)
+    all_tenant_members = await get_tenant_connection_ids(tenant_id, db, redis_client)
 
     # 1. Identify which users in the tenant are offline
     offline_user_ids = []
@@ -167,7 +171,7 @@ async def websocket_endpoint(
     }), connection_id_str)
 
     # Announce the new user's arrival to everyone else
-    await broadcast_presence_update(tenant_id, entity.id, token_data.role, "online", db)
+    await broadcast_presence_update(tenant_id, entity.id, token_data.role, "online", db, redis_client)
     
     background_tasks.add_task(mark_messages_as_received, entity.id, token_data.role, mongo_db)
     
@@ -268,7 +272,8 @@ async def websocket_endpoint(
                         f"{receiver_data['role']}-{receiver_data['id']}"
                     ]
                 elif mongo_message["type"] == "group":
-                    participants = set(get_group_members(group_data["id"], db=db))
+                    # participants = set(get_group_members(group_data["id"], db=db))
+                    participants = set(await get_group_members(group_data["id"], db, redis_client))
                     participants.discard(connection_id_str) 
                 
                 broadcast_payload = json.dumps({"event": "new_message", **mongo_message})
@@ -345,7 +350,8 @@ async def websocket_endpoint(
                         "id": group["id"],
                         "role": None
                     }
-                    participants = list(get_group_members(group["id"], db=db))
+                    # participants = list(get_group_members(group["id"], db=db))
+                    participants = list(await get_group_members(group["id"], db, redis_client))
 
                 delete_notification = json.dumps({
                     "event": "message_deleted",
@@ -359,10 +365,10 @@ async def websocket_endpoint(
             
     except WebSocketDisconnect:
         manager.disconnect(connection_id_str)
-        await broadcast_presence_update(tenant_id, entity.id, token_data.role, "offline", db)
+        await broadcast_presence_update(tenant_id, entity.id, token_data.role, "offline", db, redis_client)
         update_last_seen(entity.id, token_data.role)
     except Exception as e:
         print(f"Error in WebSocket: {e}")
         manager.disconnect(connection_id_str)
-        await broadcast_presence_update(tenant_id, entity.id, token_data.role, "offline", db)
+        await broadcast_presence_update(tenant_id, entity.id, token_data.role, "offline", db, redis_client)
         update_last_seen(entity.id, token_data.role)

@@ -5,6 +5,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from app.core.config import settings
 import redis
 from functools import lru_cache
+from fastapi import Request
 
 # --- PostgreSQL (SQLAlchemy) Setup ---
 engine = create_engine(
@@ -52,17 +53,11 @@ async def close_mongo_connection():
     db.client.close()
     print("MongoDB connection closed.")
 
-@lru_cache()
-def get_redis_client():
-    """
-    Creates and returns a Redis client instance with a connection pool.
-    Using lru_cache ensures this function is only run once.
-    """
-    print("Creating Redis client...")
-    # The decode_responses=True flag is crucial. It ensures that data
-    # retrieved from Redis is automatically decoded from bytes to UTF-8 strings.
-    client = redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
-    return client
 
-# You can import 'redis_client' in other modules to use it.
-redis_client = get_redis_client()
+# --- Redis Setup ---
+def get_redis_client(request: Request):
+    """
+    Dependency to get the Redis client instance from the app state.
+    Only for HTTP endpoints, not for WebSocket.
+    """
+    return request.app.state.redis_client
