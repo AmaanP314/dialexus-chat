@@ -96,7 +96,6 @@ async def deactivate_user(
     db: Session = Depends(get_db),
     current_admin: Admin = Depends(get_admin_from_dependency)
 ):
-    # ... (logic remains the same)
     user = db.query(User).filter(User.id == user_id, User.admin_id == current_admin.id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found in your tenant.")
@@ -216,7 +215,6 @@ def list_active_groups_with_members(
         .filter(Group.admin_id == current_admin.id, Group.is_active == True)
         .all()
     )
-    # ... (response formatting logic remains the same)
     result = []
     for group in groups:
         members_info = [{"user_id": member.user.id, "username": member.user.username, "full_name": member.user.full_name} for member in group.members if member.is_member_active]
@@ -235,7 +233,6 @@ def list_deactivated_groups_with_members(
         .filter(Group.admin_id == current_admin.id, Group.is_active == False)
         .all()
     )
-    # ... (response formatting logic remains the same)
     result = []
     for group in groups:
         members_info = [{"user_id": member.user.id, "username": member.user.username, "full_name": member.user.full_name} for member in group.members]
@@ -255,37 +252,6 @@ def deactivate_group(
     db.commit()
     remove_group_from_cache(group_id)
     return
-
-# @router.post("/groups/{group_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-# def add_user_to_group(
-#     group_id: int,
-#     user_id: int,
-#     db: Session = Depends(get_db),
-#     current_admin: Admin = Depends(get_current_user_from_cookie)
-# ):
-#     """
-#     Add a user from the admin's tenant to a group in the same tenant.
-#     """
-#     # Verify the group belongs to the admin
-#     group = db.query(Group).filter(Group.id == group_id, Group.admin_id == current_admin.id).first()
-#     if not group:
-#         raise HTTPException(status_code=404, detail="Group not found in your tenant.")
-
-#     # Verify the user belongs to the admin
-#     user = db.query(User).filter(User.id == user_id, User.admin_id == current_admin.id).first()
-#     if not user:
-#         raise HTTPException(status_code=404, detail="User not found in your tenant.")
-
-#     # Check if the user is already a member
-#     membership = db.query(GroupMember).filter(GroupMember.group_id == group_id, GroupMember.user_id == user_id).first()
-#     if membership:
-#         raise HTTPException(status_code=400, detail="User is already a member of this group.")
-
-#     new_member = GroupMember(group_id=group_id, user_id=user_id)
-#     db.add(new_member)
-#     db.commit()
-#     add_member_to_cache(group_id, f"user-{user_id}")
-#     return
 
 @router.post("/groups/{group_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def add_user_to_group(
@@ -336,31 +302,6 @@ def add_user_to_group(
     add_member_to_cache(group_id, f"user-{user_id}")
     
     return
-
-
-# @router.delete("/groups/{group_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-# def remove_user_from_group(
-#     group_id: int,
-#     user_id: int,
-#     db: Session = Depends(get_db),
-#     current_admin: Admin = Depends(get_current_user_from_cookie)
-# ):
-#     """
-#     Remove a user from a group.
-#     """
-#     # Verify the group belongs to the admin to allow this operation
-#     group = db.query(Group).filter(Group.id == group_id, Group.admin_id == current_admin.id).first()
-#     if not group:
-#         raise HTTPException(status_code=404, detail="Group not found in your tenant.")
-        
-#     membership = db.query(GroupMember).filter(GroupMember.group_id == group_id, GroupMember.user_id == user_id).first()
-#     if not membership:
-#         raise HTTPException(status_code=404, detail="User is not a member of this group.")
-
-#     db.delete(membership)
-#     db.commit()
-#     remove_member_from_cache(group_id, f"user-{user_id}")
-#     return
 
 @router.delete("/groups/{group_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_user_from_group(

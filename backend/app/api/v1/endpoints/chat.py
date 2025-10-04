@@ -49,7 +49,7 @@ def update_last_seen(entity_id: int, entity_role: str):
         if db_entity:
             db_entity.last_seen = datetime.utcnow()
             db.commit()
-            print(f"SYNC: Successfully updated last_seen for {entity_role} {entity_id}")
+            # print(f"SYNC: Successfully updated last_seen for {entity_role} {entity_id}")
         else:
             print(f"No {entity_role} found with ID {entity_id}")
     except Exception as e:

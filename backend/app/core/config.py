@@ -21,6 +21,8 @@ class Settings:
     POSTGRES_PORT: str = os.getenv("POSTGRES_PORT", "5432")
     POSTGRES_DB: str = os.getenv("POSTGRES_DB", "chat_app")
     DATABASE_URL: str = os.getenv("DATABASE_URL")
+    SUPER_ADMIN_USERNAME: str = os.getenv("SUPER_ADMIN_USERNAME")
+    SUPER_ADMIN_PASSWORD: str = os.getenv("SUPER_ADMIN_PASSWORD")
 
     # MongoDB (Atlas) settings
     MONGO_DATABASE_URL: str = os.getenv("MONGO_DATABASE_URL")

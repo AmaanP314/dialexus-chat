@@ -66,19 +66,6 @@ async def get_message_history(
                 "receiver.id": entity_id, "receiver.role": entity_role
             }
         ]
-    # elif conversation_type == "group":
-    #     # ... (group logic is unchanged and correct)
-    #     group = db.query(Group).filter(Group.id == partner_id).first()
-    #     if not group: raise HTTPException(status_code=404, detail="Group not found.")
-    #     is_member = False
-    #     if isinstance(current_entity, Admin) and current_entity.id == group.admin_id:
-    #         is_member = True
-    #     elif isinstance(current_entity, User):
-    #         membership = db.query(GroupMember).filter(GroupMember.group_id == partner_id, GroupMember.user_id == entity_id).first()
-    #         if membership: is_member = True
-    #     if not is_member:
-    #         raise HTTPException(status_code=403, detail="You are not a member of this group.")
-    #     query["group.id"] = partner_id
     elif conversation_type == "group":
         # --- MODIFICATION: Check membership status before querying ---
         membership = None

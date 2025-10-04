@@ -18,6 +18,13 @@ sudo docker build -t chat-backend .
 sudo docker stop chat-backend-container || true
 sudo docker rm chat-backend-container || true
 sudo docker run -d --restart always -p 7860:7860 --env-file ./.env --add-host=host.docker.internal:host-gateway --name chat-backend-container chat-backend
+
+echo "Waiting for container to start..."
+sleep 5 
+
+echo "3. Seeding the PostgreSQL database..."
+sudo docker exec chat-backend-container python scripts/seed.py
+
 cd ..
 
 # Redeploy the frontend
