@@ -8,6 +8,9 @@ import { loginUser, getCurrentUser } from "@/lib/api";
 
 // This component contains the actual logic and can use the searchParams hook
 function LoginForm() {
+  useEffect(() => {
+    document.title = "DC | Login";
+  }, []);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);

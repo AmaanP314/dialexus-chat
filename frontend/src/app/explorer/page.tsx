@@ -1,12 +1,16 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import ConversationPairList from "@/components/explorer/ConversationPairList";
 import AdminMessageViewer from "@/components/explorer/AdminMessageViewer";
 import { ConversationPair } from "@/components/types";
 
 // This component no longer needs the ExplorerProvider, as it's in the layout
 export default function ExplorerPage() {
+  useEffect(() => {
+    document.title = "DC | Explorer";
+  }, []);
+
   const [selectedPair, setSelectedPair] = useState<ConversationPair | null>(
     null
   );

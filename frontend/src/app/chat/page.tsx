@@ -4,7 +4,7 @@ import React, { useState, useCallback, useEffect } from "react";
 import Sidebar from "@/components/Sidebar";
 import ChatWindow from "@/components/ChatWindow";
 import {
-  Conversation as BaseConversation,
+  Conversation,
   ConversationCache,
   Message,
   RealtimeMessage,
@@ -20,10 +20,6 @@ import {
   pinConversation,
   unpinConversation,
 } from "@/lib/api";
-
-export interface Conversation extends BaseConversation {
-  is_pinned?: boolean;
-}
 
 // Helper function to sort conversations: pinned first, then by timestamp
 const sortConversations = (conversations: Conversation[]): Conversation[] => {
@@ -42,7 +38,8 @@ const sortConversations = (conversations: Conversation[]): Conversation[] => {
 export default function ChatPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
   const { lastEvent, sendMessage } = useSocket();
-  const { setActiveChatId, clearUnreadCount, unreadCounts } = useNotification();
+  const { setActiveChatId, clearUnreadCount, unreadCounts, totalUnreadCount } =
+    useNotification();
 
   const [conversationsList, setConversationsList] = useState<Conversation[]>(
     []
@@ -56,6 +53,14 @@ export default function ChatPage() {
   const [isLoadingMessages, setIsLoadingMessages] = useState<
     Map<string, boolean>
   >(new Map());
+
+  useEffect(() => {
+    if (totalUnreadCount > 0) {
+      document.title = `(${totalUnreadCount}) Dialexus | Chat`;
+    } else {
+      document.title = "Dialexus | Chat";
+    }
+  }, [totalUnreadCount]);
 
   useEffect(() => {
     if (user) {

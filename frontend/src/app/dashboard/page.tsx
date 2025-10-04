@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   BarChart,
   Users,
@@ -19,6 +19,10 @@ const DashboardSidebar = ({
   activeSubTab,
   setActiveSubTab,
 }: any) => {
+  useEffect(() => {
+    document.title = "DC | Dashboard";
+  }, []);
+
   const tabs = [
     { id: "overview", label: "Overview", icon: BarChart },
     {
