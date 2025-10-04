@@ -339,6 +339,34 @@ export default function ChatPage() {
         return newCache;
       });
     }
+
+    if (lastEvent.event === "member_removed" && lastEvent.type === "group") {
+      const { id: groupId } = lastEvent;
+
+      // Update the main list for the sidebar
+      setConversationsList((prevList) =>
+        prevList.map((convo) => {
+          if (convo.type === "group" && convo.id === groupId) {
+            return { ...convo, is_member_active: false };
+          }
+          return convo;
+        })
+      );
+
+      // **CRUCIAL ADDITION**: Check if the removed group is the one currently selected
+      setSelectedConversation((prevSelectedConvo) => {
+        if (
+          prevSelectedConvo &&
+          prevSelectedConvo.type === "group" &&
+          prevSelectedConvo.id === groupId
+        ) {
+          // If it is, update its state as well to trigger the UI change
+          return { ...prevSelectedConvo, is_member_active: false };
+        }
+        // Otherwise, no change is needed for the selected conversation
+        return prevSelectedConvo;
+      });
+    }
   }, [lastEvent, user, handleRealtimeMessage]);
 
   const handleSendMessage = (content: MessageContent) => {

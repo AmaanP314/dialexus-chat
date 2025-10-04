@@ -167,7 +167,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
     },
     [isLoading, onLoadMore]
   );
-
+  const isChatDisabled =
+    conversation.type === "group" && conversation.is_member_active === false;
   // Scroll to bottom on initial load or when a new message is added
   useEffect(() => {
     bottomRef.current?.scrollIntoView();
@@ -224,89 +225,87 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
         <div ref={bottomRef} />
       </main>
 
-      <footer className="p-4 border-t border-border flex-shrink-0">
-        {attachment && (
-          <div className="p-2 border-b border-border">
-            <AttachmentPreview
-              file={attachment}
-              onCancel={cancelAttachment}
-              isUploading={isUploading}
-            />
-          </div>
-        )}
-        {uploadError && (
-          <div className="p-2 text-red-500 text-sm flex items-center gap-2">
-            <AlertCircle size={16} />
-            {uploadError}
-          </div>
-        )}
-        <div className="flex items-end gap-2">
-          {" "}
-          {/* Use items-end to align bottom */}
-          {/* File Input and Button */}
-          <div className="flex items-center bg-muted rounded-full p-2 h-12">
+      {isChatDisabled ? (
+        <footer className="p-4 border-t border-border flex-shrink-0 flex items-center justify-center bg-background">
+          <p className="text-sm text-muted-foreground italic text-center max-w-md">
+            You have been removed from the group by the administrator. You can
+            view past messages, but you can no longer send new ones.
+          </p>
+        </footer>
+      ) : (
+        <footer className="p-4 border-t border-border flex-shrink-0">
+          {attachment && (
+            <div className="p-2 border-b border-border">
+              <AttachmentPreview
+                file={attachment}
+                onCancel={cancelAttachment}
+                isUploading={isUploading}
+              />
+            </div>
+          )}
+          {uploadError && (
+            <div className="p-2 text-red-500 text-sm flex items-center gap-2">
+              <AlertCircle size={16} />
+              {uploadError}
+            </div>
+          )}
+          <div className="flex items-end gap-2">
             {" "}
-            {/* Adjusted height for alignment */}
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileSelect}
-              className="hidden"
+            {/* Use items-end to align bottom */}
+            {/* File Input and Button */}
+            <div className="flex items-center bg-muted rounded-full p-2 h-12">
+              {" "}
+              {/* Adjusted height for alignment */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileSelect}
+                className="hidden"
+                disabled={isUploading}
+                aria-label="File upload input"
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                className="p-2 text-muted-foreground hover:text-foreground disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-primary rounded-full transition-colors duration-200"
+                aria-label="Attach file"
+                title="Attach file"
+              >
+                <Paperclip size={20} />
+              </button>
+            </div>
+            <textarea
+              ref={textareaRef}
+              placeholder="Type a message..."
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={handleKeyDown}
               disabled={isUploading}
-              aria-label="File upload input"
+              className="flex-grow px-4 py-2 bg-muted focus:outline-none text-foreground disabled:opacity-50 rounded-2xl transition-colors duration-200 focus:ring-2 focus:ring-primary resize-none leading-6"
+              rows={1}
+              style={{
+                maxHeight: "9rem" /* Approx 6 lines */,
+                overflowY: "auto",
+              }}
+              aria-label="Message input field"
             />
+            {/* Send Button */}
             <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
-              className="p-2 text-muted-foreground hover:text-foreground disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-primary rounded-full transition-colors duration-200"
-              aria-label="Attach file"
-              title="Attach file"
+              onClick={handleSend}
+              disabled={isUploading || (!inputText.trim() && !attachment)}
+              className="p-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 flex-shrink-0 h-12 w-12 flex items-center justify-center" // Ensure fixed size for circular shape
+              aria-label="Send message"
+              title="Send message"
             >
-              <Paperclip size={20} />
+              {isUploading ? (
+                <Loader2 className="animate-spin" size={20} />
+              ) : (
+                <Send size={20} />
+              )}
             </button>
           </div>
-          {/* Text Input */}
-          {/* <input
-            type="text"
-            placeholder="Type a message..."
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            onKeyPress={(e) => e.key === "Enter" && handleSend()}
-            disabled={isUploading}
-            className="flex-grow px-6 py-2 bg-muted focus:outline-none text-foreground disabled:opacity-50 rounded-full h-12 transition-colors duration-200 focus:ring-2 focus:ring-primary"
-            aria-label="Message input field"
-          /> */}
-          <textarea
-            ref={textareaRef}
-            placeholder="Type a message..."
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={isUploading}
-            className="flex-grow px-4 py-2 bg-muted focus:outline-none text-foreground disabled:opacity-50 rounded-2xl transition-colors duration-200 focus:ring-2 focus:ring-primary resize-none leading-6"
-            rows={1}
-            style={{
-              maxHeight: "9rem" /* Approx 6 lines */,
-              overflowY: "auto",
-            }}
-            aria-label="Message input field"
-          />
-          {/* Send Button */}
-          <button
-            onClick={handleSend}
-            disabled={isUploading || (!inputText.trim() && !attachment)}
-            className="p-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 flex-shrink-0 h-12 w-12 flex items-center justify-center" // Ensure fixed size for circular shape
-            aria-label="Send message"
-            title="Send message"
-          >
-            {isUploading ? (
-              <Loader2 className="animate-spin" size={20} />
-            ) : (
-              <Send size={20} />
-            )}
-          </button>
-        </div>
-      </footer>
+        </footer>
+      )}
     </section>
   );
 };

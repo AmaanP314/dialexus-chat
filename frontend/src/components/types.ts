@@ -46,6 +46,7 @@ export interface Conversation {
   last_message: string;
   last_message_is_deleted?: boolean;
   timestamp: string;
+  is_member_active?: boolean;
 }
 
 export interface ConversationsResponse {

@@ -109,6 +109,116 @@ def search_for_entities(
 
     return {"users": found_users, "admins": found_admins, "groups": found_groups}
 
+# @router.get("/conversations", response_model=ConversationList)
+# async def get_user_conversations(
+#     current_entity: Union[User, Admin] = Depends(get_current_user_from_cookie),
+#     db: Session = Depends(get_db),
+#     mongo_db: AsyncIOMotorClient = Depends(get_mongo_db)
+# ):
+#     messages_collection = mongo_db["messages"]
+    
+#     entity_id = current_entity.id
+#     entity_role = "admin" if isinstance(current_entity, Admin) else "user"
+#     tenant_id = current_entity.id if isinstance(current_entity, Admin) else current_entity.admin_id
+
+#     # Get user's group memberships
+#     user_group_ids = []
+#     if isinstance(current_entity, User):
+#         memberships = db.query(GroupMember.group_id).filter_by(user_id=entity_id).all()
+#         user_group_ids = [row.group_id for row in memberships]
+#     else: # An admin is part of all groups in their tenant
+#         groups = db.query(Group.id).filter_by(admin_id=tenant_id).all()
+#         user_group_ids = [row.id for row in groups]
+
+#     # The MongoDB aggregation pipeline to get the last message of each conversation
+#     pipeline = [
+#         {"$match": {
+#             "$or": [
+#                 {"sender.id": entity_id, "sender.role": entity_role},
+#                 {"receiver.id": entity_id, "receiver.role": entity_role},
+#                 {"group.id": {"$in": user_group_ids}}
+#             ]
+#         }},
+#         {"$sort": {"timestamp": -1}},
+#         {"$group": {
+#             "_id": {
+#                 "$cond": {
+#                     "if": {"$eq": ["$type", "private"]},
+#                     "then": {
+#                         "participants": {
+#                             "$sortArray": { "input": [ "$sender", "$receiver" ], "sortBy": { "id": 1 } }
+#                         }
+#                     },
+#                     "else": {"$concat": ["group-", {"$toString": "$group.id"}]}
+#                 }
+#             },
+#             "last_message_doc": {"$first": "$$ROOT"}
+#         }},
+#         {"$replaceRoot": {"newRoot": "$last_message_doc"}}
+#     ]
+
+#     latest_messages = await messages_collection.aggregate(pipeline).to_list(length=None)
+    
+#     # --- EFFICIENTLY FETCH FULL NAMES ---
+#     # 1. Collect all unique user and admin IDs from the private conversations
+#     user_ids_to_fetch = set()
+#     admin_ids_to_fetch = set()
+#     for msg in latest_messages:
+#         if msg['type'] == 'private':
+#             partner = msg['receiver'] if msg['sender']['id'] == entity_id and msg['sender']['role'] == entity_role else msg['sender']
+#             if partner['role'] == 'user':
+#                 user_ids_to_fetch.add(partner['id'])
+#             elif partner['role'] == 'admin':
+#                 admin_ids_to_fetch.add(partner['id'])
+
+#     # 2. Perform one batch query for users and one for admins
+#     users_data = db.query(User.id, User.username, User.full_name).filter(User.id.in_(user_ids_to_fetch)).all()
+#     admins_data = db.query(Admin.id, Admin.username, Admin.full_name).filter(Admin.id.in_(admin_ids_to_fetch)).all()
+    
+#     # 3. Create a lookup map for instant access
+#     details_map = {f"user-{u.id}": u for u in users_data}
+#     details_map.update({f"admin-{a.id}": a for a in admins_data})
+
+#     # --- BUILD THE FINAL RESPONSE ---
+#     conversations = []
+#     for msg in sorted(latest_messages, key=lambda x: x['timestamp'], reverse=True):
+#         last_message_text = msg.get("content", {}).get("text", "[Attachment]")
+#         message_is_deleted = msg.get("is_deleted")
+#         last_message_id = msg.get("_id")
+        
+#         if msg['type'] == 'private':
+#             partner = msg['receiver'] if msg['sender']['id'] == entity_id and msg['sender']['role'] == entity_role else msg['sender']
+#             partner_key = f"{partner['role']}-{partner['id']}"
+            
+#             # Use the lookup map to get full details
+#             partner_details = details_map.get(partner_key)
+
+#             if partner_details:
+#                 conversations.append(ConversationPartner(
+#                     id=partner_details.id,
+#                     name=partner_details.username,
+#                     full_name=partner_details.full_name, # <-- ADDED FULL NAME
+#                     type=partner['role'],
+#                     last_message_id=last_message_id,
+#                     last_message=last_message_text,
+#                     last_message_is_deleted=message_is_deleted,
+#                     timestamp=msg['timestamp']
+#                 ))
+#         elif msg['type'] == 'group':
+#             group = msg['group']
+#             conversations.append(ConversationPartner(
+#                 id=group['id'],
+#                 name=group['name'],
+#                 full_name=None, # Groups don't have a full_name
+#                 type='group',
+#                 last_message_id=last_message_id,
+#                 last_message=last_message_text,
+#                 last_message_is_deleted=message_is_deleted,
+#                 timestamp=msg['timestamp']
+#             ))
+
+#     return {"conversations": conversations}
+
 @router.get("/conversations", response_model=ConversationList)
 async def get_user_conversations(
     current_entity: Union[User, Admin] = Depends(get_current_user_from_cookie),
@@ -119,26 +229,38 @@ async def get_user_conversations(
     
     entity_id = current_entity.id
     entity_role = "admin" if isinstance(current_entity, Admin) else "user"
-    tenant_id = current_entity.id if isinstance(current_entity, Admin) else current_entity.admin_id
 
-    # Get user's group memberships
-    user_group_ids = []
+    # --- 1. Fetch Detailed Group Membership Info ---
+    memberships_map = {}
     if isinstance(current_entity, User):
-        memberships = db.query(GroupMember.group_id).filter_by(user_id=entity_id).all()
-        user_group_ids = [row.group_id for row in memberships]
-    else: # An admin is part of all groups in their tenant
-        groups = db.query(Group.id).filter_by(admin_id=tenant_id).all()
-        user_group_ids = [row.id for row in groups]
+        memberships = db.query(GroupMember).filter_by(user_id=entity_id).all()
+        memberships_map = {m.group_id: m for m in memberships}
+    elif isinstance(current_entity, Admin):
+        groups = db.query(Group).filter_by(admin_id=entity_id).all()
+        for group in groups:
+            mock_membership = GroupMember(group_id=group.id, is_member_active=True, removed_at=None)
+            memberships_map[group.id] = mock_membership
 
-    # The MongoDB aggregation pipeline to get the last message of each conversation
+    # --- 2. Dynamically Build the Match Query ---
+    match_conditions = [
+        {"sender.id": entity_id, "sender.role": entity_role},
+        {"receiver.id": entity_id, "receiver.role": entity_role},
+    ]
+
+    active_group_ids = [gid for gid, m in memberships_map.items() if m.is_member_active]
+    if active_group_ids:
+        match_conditions.append({"group.id": {"$in": active_group_ids}})
+
+    inactive_memberships = [m for m in memberships_map.values() if not m.is_member_active]
+    for m in inactive_memberships:
+        if m.removed_at:
+            match_conditions.append({
+                "group.id": m.group_id,
+                "timestamp": {"$lt": m.removed_at}
+            })
+
     pipeline = [
-        {"$match": {
-            "$or": [
-                {"sender.id": entity_id, "sender.role": entity_role},
-                {"receiver.id": entity_id, "receiver.role": entity_role},
-                {"group.id": {"$in": user_group_ids}}
-            ]
-        }},
+        {"$match": {"$or": match_conditions}},
         {"$sort": {"timestamp": -1}},
         {"$group": {
             "_id": {
@@ -149,7 +271,7 @@ async def get_user_conversations(
                             "$sortArray": { "input": [ "$sender", "$receiver" ], "sortBy": { "id": 1 } }
                         }
                     },
-                    "else": {"$concat": ["group-", {"$toString": "$group.id"}]}
+                    "else": "$group.id"
                 }
             },
             "last_message_doc": {"$first": "$$ROOT"}
@@ -160,7 +282,6 @@ async def get_user_conversations(
     latest_messages = await messages_collection.aggregate(pipeline).to_list(length=None)
     
     # --- EFFICIENTLY FETCH FULL NAMES ---
-    # 1. Collect all unique user and admin IDs from the private conversations
     user_ids_to_fetch = set()
     admin_ids_to_fetch = set()
     for msg in latest_messages:
@@ -171,53 +292,57 @@ async def get_user_conversations(
             elif partner['role'] == 'admin':
                 admin_ids_to_fetch.add(partner['id'])
 
-    # 2. Perform one batch query for users and one for admins
     users_data = db.query(User.id, User.username, User.full_name).filter(User.id.in_(user_ids_to_fetch)).all()
     admins_data = db.query(Admin.id, Admin.username, Admin.full_name).filter(Admin.id.in_(admin_ids_to_fetch)).all()
     
-    # 3. Create a lookup map for instant access
     details_map = {f"user-{u.id}": u for u in users_data}
     details_map.update({f"admin-{a.id}": a for a in admins_data})
 
     # --- BUILD THE FINAL RESPONSE ---
     conversations = []
     for msg in sorted(latest_messages, key=lambda x: x['timestamp'], reverse=True):
-        last_message_text = msg.get("content", {}).get("text", "[Attachment]")
-        message_is_deleted = msg.get("is_deleted")
-        last_message_id = msg.get("_id")
+        last_message_text = msg.get("content", {}).get("text")
+        if not last_message_text:
+            if msg.get("content", {}).get("image") or msg.get("content", {}).get("file"):
+                last_message_text = "[Attachment]"
+            else:
+                last_message_text = ""
         
         if msg['type'] == 'private':
             partner = msg['receiver'] if msg['sender']['id'] == entity_id and msg['sender']['role'] == entity_role else msg['sender']
             partner_key = f"{partner['role']}-{partner['id']}"
-            
-            # Use the lookup map to get full details
             partner_details = details_map.get(partner_key)
 
             if partner_details:
                 conversations.append(ConversationPartner(
                     id=partner_details.id,
                     name=partner_details.username,
-                    full_name=partner_details.full_name, # <-- ADDED FULL NAME
+                    full_name=partner_details.full_name,
                     type=partner['role'],
-                    last_message_id=last_message_id,
+                    last_message_id=msg["_id"],
                     last_message=last_message_text,
-                    last_message_is_deleted=message_is_deleted,
-                    timestamp=msg['timestamp']
+                    last_message_is_deleted=msg.get("is_deleted", False),
+                    timestamp=msg['timestamp'],
+                    is_member_active=True # Always true for private chats
                 ))
         elif msg['type'] == 'group':
             group = msg['group']
+            membership = memberships_map.get(group['id'])
+            
             conversations.append(ConversationPartner(
                 id=group['id'],
                 name=group['name'],
-                full_name=None, # Groups don't have a full_name
+                full_name=None,
                 type='group',
-                last_message_id=last_message_id,
+                last_message_id=msg["_id"],
                 last_message=last_message_text,
-                last_message_is_deleted=message_is_deleted,
-                timestamp=msg['timestamp']
+                last_message_is_deleted=msg.get("is_deleted", False),
+                timestamp=msg['timestamp'],
+                is_member_active=membership.is_member_active if membership else False
             ))
 
     return {"conversations": conversations}
+
 
 
 @router.patch("/me/password", status_code=status.HTTP_204_NO_CONTENT)

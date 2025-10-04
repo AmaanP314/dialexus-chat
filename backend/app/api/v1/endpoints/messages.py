@@ -66,19 +66,42 @@ async def get_message_history(
                 "receiver.id": entity_id, "receiver.role": entity_role
             }
         ]
+    # elif conversation_type == "group":
+    #     # ... (group logic is unchanged and correct)
+    #     group = db.query(Group).filter(Group.id == partner_id).first()
+    #     if not group: raise HTTPException(status_code=404, detail="Group not found.")
+    #     is_member = False
+    #     if isinstance(current_entity, Admin) and current_entity.id == group.admin_id:
+    #         is_member = True
+    #     elif isinstance(current_entity, User):
+    #         membership = db.query(GroupMember).filter(GroupMember.group_id == partner_id, GroupMember.user_id == entity_id).first()
+    #         if membership: is_member = True
+    #     if not is_member:
+    #         raise HTTPException(status_code=403, detail="You are not a member of this group.")
+    #     query["group.id"] = partner_id
     elif conversation_type == "group":
-        # ... (group logic is unchanged and correct)
-        group = db.query(Group).filter(Group.id == partner_id).first()
-        if not group: raise HTTPException(status_code=404, detail="Group not found.")
-        is_member = False
-        if isinstance(current_entity, Admin) and current_entity.id == group.admin_id:
-            is_member = True
-        elif isinstance(current_entity, User):
-            membership = db.query(GroupMember).filter(GroupMember.group_id == partner_id, GroupMember.user_id == entity_id).first()
-            if membership: is_member = True
-        if not is_member:
+        # --- MODIFICATION: Check membership status before querying ---
+        membership = None
+        if isinstance(current_entity, User):
+            membership = db.query(GroupMember).filter(
+                GroupMember.group_id == partner_id, 
+                GroupMember.user_id == entity_id
+            ).first()
+        elif isinstance(current_entity, Admin):
+            group = db.query(Group).filter(Group.id == partner_id, Group.admin_id == entity_id).first()
+            if group:
+                # Create a mock active membership for the admin
+                membership = GroupMember(is_member_active=True)
+
+        if not membership:
             raise HTTPException(status_code=403, detail="You are not a member of this group.")
+
         query["group.id"] = partner_id
+        
+        # If the member is inactive, add a timestamp filter to the query
+        if not membership.is_member_active and membership.removed_at:
+            query["timestamp"] = {"$lt": membership.removed_at}
+        # --- END OF MODIFICATION ---
     else:
         raise HTTPException(status_code=400, detail="Invalid conversation type.")
 
