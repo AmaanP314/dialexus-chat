@@ -3,7 +3,7 @@ set -e # Exit immediately if a command exits with a non-zero status.
 
 # Source NVM to make node and npm available to the script
 export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/n_vm.sh" ] && \. "$NVM_DIR/nvm.sh"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
 echo "Starting deployment process..."
 
