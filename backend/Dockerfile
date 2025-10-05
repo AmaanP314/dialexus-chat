@@ -12,5 +12,5 @@ ENV HOME=/home/user \
 WORKDIR $HOME/app
 
 COPY --chown=user . $HOME/app
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860", "--loop", "asyncio"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860", "--loop", "asyncio"]
 # CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860"]
