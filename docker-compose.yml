@@ -20,3 +20,5 @@ services:
     restart: always
     # IMPORTANT: Set a strong password here for security
     command: redis-server --requirepass "Gta6free10"
+    ports:
+      - "127.0.0.1:6379:6379"
