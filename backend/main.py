@@ -68,7 +68,7 @@ def read_root():
 
 
 # Include the API router
-app.include_router(api_router, prefix=settings.API_V1_STR)
+# app.include_router(api_router, prefix=settings.API_V1_STR)
 
 @app.get("/")
 def read_root():
