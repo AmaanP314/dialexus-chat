@@ -4,8 +4,8 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Union, Optional
 import datetime
-
-from app.db.session import get_db, get_mongo_db
+import redis.asyncio as redis
+from app.db.session import get_db, get_mongo_db, get_redis_client
 from app.security.dependencies import get_current_user_from_cookie
 from app.security.hashing import Hasher
 from app.models import Admin, User, Group, GroupMember
@@ -152,28 +152,102 @@ async def reset_user_password(
 # --- Group Management by Admin ---
 
 @router.post("/groups", response_model=GroupOut, status_code=status.HTTP_201_CREATED)
-def create_group_for_admin(
+async def create_group_for_admin(
     group_in: GroupCreateWithMembers,
     db: Session = Depends(get_db),
+    redis_client: redis.Redis = Depends(get_redis_client), # Inject Redis client
     current_admin: Admin = Depends(get_admin_from_dependency)
 ):
-    # ... (logic remains the same)
     db_group = db.query(Group).filter(Group.name == group_in.name, Group.admin_id == current_admin.id).first()
     if db_group:
         raise HTTPException(status_code=400, detail=f"Group name '{group_in.name}' already exists in your tenant.")
+    
     new_group = Group(name=group_in.name, admin_id=current_admin.id)
     db.add(new_group)
     db.flush()
+
     if group_in.members:
         for user_id in group_in.members:
             user = db.query(User).filter(User.id == user_id, User.admin_id == current_admin.id).first()
             if user:
                 new_member = GroupMember(group_id=new_group.id, user_id=user.id)
                 db.add(new_member)
-                add_member_to_cache(new_group.id, f"user-{user.id}")
+                await add_member_to_cache(new_group.id, f"user-{user.id}", redis_client)
+
     db.commit()
     db.refresh(new_group)
     return new_group
+
+@router.post("/groups/{group_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def add_user_to_group(
+    group_id: int,
+    user_id: int,
+    db: Session = Depends(get_db),
+    redis_client: redis.Redis = Depends(get_redis_client), # Inject Redis client
+    current_admin: Admin = Depends(get_admin_from_dependency)
+):
+    # ... (verification logic for group and user is unchanged) ...
+    group = db.query(Group).filter(Group.id == group_id, Group.admin_id == current_admin.id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found in your tenant.")
+    user = db.query(User).filter(User.id == user_id, User.admin_id == current_admin.id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found in your tenant.")
+
+    membership = db.query(GroupMember).filter(
+        GroupMember.group_id == group_id, 
+        GroupMember.user_id == user_id
+    ).first()
+    
+    if membership:
+        if membership.is_member_active:
+            raise HTTPException(status_code=400, detail="User is already an active member of this group.")
+        else:
+            membership.is_member_active = True
+            membership.removed_at = None
+    else:
+        new_member = GroupMember(group_id=group_id, user_id=user_id)
+        db.add(new_member)
+    
+    db.commit()
+    
+    await add_member_to_cache(group_id, f"user-{user_id}", redis_client)
+    
+    return
+
+@router.delete("/groups/{group_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_user_from_group(
+    group_id: int,
+    user_id: int,
+    db: Session = Depends(get_db),
+    redis_client: redis.Redis = Depends(get_redis_client), # Inject Redis client
+    current_admin: Admin = Depends(get_admin_from_dependency)
+):
+    # ... (verification logic is unchanged) ...
+    group = db.query(Group).filter(Group.id == group_id, Group.admin_id == current_admin.id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found in your tenant.")
+    membership = db.query(GroupMember).filter(GroupMember.group_id == group_id, GroupMember.user_id == user_id).first()
+    if not membership:
+        raise HTTPException(status_code=404, detail="User is not a member of this group.")
+
+    membership.is_member_active = False
+    membership.removed_at = datetime.datetime.utcnow()
+    db.commit()
+    
+    user_connection_id = f"user-{user_id}"
+    await remove_member_from_cache(group_id, user_connection_id, redis_client)
+    
+    if user_connection_id in manager.active_connections:
+        notification_payload = json.dumps({
+            "event": "member_removed",
+            "type": "group",
+            "id": group_id
+        })
+        await manager.send_personal_message(notification_payload, user_connection_id)
+        # print(f"Sent 'member_removed' notification to {user_connection_id}")
+
+    return None
 
 @router.get("/groups/all", response_model=List[GroupWithMembers])
 def list_groups_with_members_for_admin(
@@ -243,107 +317,16 @@ def list_deactivated_groups_with_members(
 def deactivate_group(
     group_id: int,
     db: Session = Depends(get_db),
-    current_admin: Admin = Depends(get_admin_from_dependency)
+    current_admin: Admin = Depends(get_admin_from_dependency),
+    redis_client: redis.Redis = Depends(get_redis_client)
 ):
     group = db.query(Group).filter(Group.id == group_id, Group.admin_id == current_admin.id).first()
     if not group:
         raise HTTPException(status_code=404, detail="Group not found in your tenant.")
     group.is_active = False
     db.commit()
-    remove_group_from_cache(group_id)
+    remove_group_from_cache(group_id, redis_client) # Pass the Redis client to the cache function
     return
-
-@router.post("/groups/{group_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def add_user_to_group(
-    group_id: int,
-    user_id: int,
-    db: Session = Depends(get_db),
-    current_admin: Admin = Depends(get_current_user_from_cookie)
-):
-    """
-    Adds a user to a group. If the user was previously removed (inactive),
-    this endpoint will reactivate their membership.
-    """
-    # Verify the group belongs to the admin
-    group = db.query(Group).filter(Group.id == group_id, Group.admin_id == current_admin.id).first()
-    if not group:
-        raise HTTPException(status_code=404, detail="Group not found in your tenant.")
-
-    # Verify the user belongs to the admin
-    user = db.query(User).filter(User.id == user_id, User.admin_id == current_admin.id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found in your tenant.")
-
-    # --- MODIFIED LOGIC: Handle reactivation ---
-    membership = db.query(GroupMember).filter(
-        GroupMember.group_id == group_id, 
-        GroupMember.user_id == user_id
-    ).first()
-    
-    if membership:
-        # If a membership record exists, check if it's already active.
-        if membership.is_member_active:
-            raise HTTPException(status_code=400, detail="User is already an active member of this group.")
-        else:
-            # If the member is inactive, reactivate them.
-            print(f"Reactivating user {user_id} in group {group_id}.")
-            membership.is_member_active = True
-            membership.removed_at = None
-    else:
-        # If no membership record exists, create a new one.
-        print(f"Adding new user {user_id} to group {group_id}.")
-        new_member = GroupMember(group_id=group_id, user_id=user_id)
-        db.add(new_member)
-    
-    # Commit the changes (either the update or the new addition)
-    db.commit()
-    
-    # Update the cache to reflect the now-active member
-    add_member_to_cache(group_id, f"user-{user_id}")
-    
-    return
-
-@router.delete("/groups/{group_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_user_from_group(
-    group_id: int,
-    user_id: int,
-    db: Session = Depends(get_db),
-    current_admin: Admin = Depends(get_current_user_from_cookie)
-):
-    """
-    Soft-removes a user from a group by setting their membership to inactive.
-    Notifies the user in real-time if they are connected.
-    """
-    group = db.query(Group).filter(Group.id == group_id, Group.admin_id == current_admin.id).first()
-    if not group:
-        raise HTTPException(status_code=404, detail="Group not found in your tenant.")
-        
-    membership = db.query(GroupMember).filter(GroupMember.group_id == group_id, GroupMember.user_id == user_id).first()
-    if not membership:
-        raise HTTPException(status_code=404, detail="User is not a member of this group.")
-
-    # --- MODIFICATION: Perform a soft-remove instead of a hard delete ---
-    membership.is_member_active = False
-    membership.removed_at = datetime.datetime.utcnow() # Use UTC timestamp
-    db.commit()
-    
-    # Invalidate the cache for this user
-    user_connection_id = f"user-{user_id}"
-    remove_member_from_cache(group_id, user_connection_id)
-    
-    # --- REAL-TIME NOTIFICATION ---
-    # Check if the removed user is online and notify them.
-    if user_connection_id in manager.active_connections:
-        notification_payload = json.dumps({
-            "event": "member_removed",
-            "type": "group",
-            "id": group_id
-        })
-        print(notification_payload)
-        await manager.send_personal_message(notification_payload, user_connection_id)
-        print(f"Sent 'member_removed' notification to {user_connection_id}")
-
-    return None
 
 @router.get("/conversations/users", response_model=List[ConversationSummary])
 async def list_user_to_user_conversations(
