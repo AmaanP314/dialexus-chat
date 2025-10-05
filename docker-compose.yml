@@ -13,9 +13,10 @@ services:
     # This ensures the backend starts after redis is ready
     depends_on:
       - redis
+    network_mode: "host"
     # This allows the container to connect to PostgreSQL on the host
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    # extra_hosts:
+    #   - "host.docker.internal:host-gateway"
 
   # This is your new Redis service
   redis:
