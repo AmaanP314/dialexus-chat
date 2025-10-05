@@ -3,7 +3,7 @@ set -e # Exit immediately if a command exits with a non-zero status.
 
 # Source NVM to make node and npm available to the script
 export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+[ -s "$NVM_DIR/n_vm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
 echo "Starting deployment process..."
 
@@ -11,22 +11,20 @@ echo "Starting deployment process..."
 echo "1. Pulling latest code from GitHub..."
 git pull origin main
 
-# --- MODIFIED BLOCK: Use docker-compose to manage the backend stack ---
+# --- MODIFIED BLOCK: Use the correct docker-compose command ---
 echo "2. Redeploying backend services with docker-compose..."
-# Build the backend image and bring up both services (backend & redis).
-# --no-deps prevents redis from restarting if it's already running.
-# The 'backend' argument ensures only the backend service is rebuilt.
-sudo docker-compose up -d --build --no-deps backend
+# This single command does everything:
+# - It builds any images that have changed (your backend).
+# - It starts ALL services defined in the docker-compose.yml file.
+# - It re-creates containers if their configuration has changed.
+sudo docker-compose up -d --build
 # --- END OF MODIFICATION ---
 
 echo "Waiting for containers to start..."
 sleep 5 
 
 echo "3. Seeding the PostgreSQL database..."
-# This command is unchanged because we kept the container name the same
 sudo docker exec chat-backend-container python scripts/seed.py
-
-# --- NOTE: The 'cd' commands are no longer needed here ---
 
 # Redeploy the frontend
 echo "4. Redeploying frontend..."
