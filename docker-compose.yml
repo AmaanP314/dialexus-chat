@@ -1,0 +1,28 @@
+version: "3.8"
+
+services:
+  # This is your FastAPI application
+  backend:
+    build: ./backend
+    container_name: chat-backend-container
+    restart: always
+    ports:
+      - "7860:7860"
+    env_file:
+      - ./backend/.env
+    # This ensures the backend starts after redis is ready
+    depends_on:
+      - redis
+    # This allows the container to connect to PostgreSQL on the host
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # This is your new Redis service
+  redis:
+    image: redis:latest
+    container_name: chat-redis-container
+    restart: always
+    # IMPORTANT: Set a strong password here for security
+    command: redis-server --requirepass "Gta6free10"
+    ports:
+      - "6379:6379"

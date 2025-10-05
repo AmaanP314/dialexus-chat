@@ -11,24 +11,25 @@ echo "Starting deployment process..."
 echo "1. Pulling latest code from GitHub..."
 git pull origin main
 
-# Redeploy the backend
-echo "2. Redeploying backend..."
-cd backend
-sudo docker build -t chat-backend .
-sudo docker stop chat-backend-container || true
-sudo docker rm chat-backend-container || true
-sudo docker run -d --restart always -p 7860:7860 --env-file ./.env --add-host=host.docker.internal:host-gateway --name chat-backend-container chat-backend
+# --- MODIFIED BLOCK: Use docker-compose to manage the backend stack ---
+echo "2. Redeploying backend services with docker-compose..."
+# Build the backend image and bring up both services (backend & redis).
+# --no-deps prevents redis from restarting if it's already running.
+# The 'backend' argument ensures only the backend service is rebuilt.
+sudo docker-compose up -d --build --no-deps backend
+# --- END OF MODIFICATION ---
 
-# echo "Waiting for container to start..."
-# sleep 5 
+echo "Waiting for containers to start..."
+sleep 5 
 
-# echo "3. Seeding the PostgreSQL database..."
-# sudo docker exec chat-backend-container python scripts/seed.py
+echo "3. Seeding the PostgreSQL database..."
+# This command is unchanged because we kept the container name the same
+sudo docker exec chat-backend-container python scripts/seed.py
 
-cd ..
+# --- NOTE: The 'cd' commands are no longer needed here ---
 
 # Redeploy the frontend
-echo "3. Redeploying frontend..."
+echo "4. Redeploying frontend..."
 cd frontend
 npm install
 npm run build
