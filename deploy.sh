@@ -21,12 +21,12 @@ echo "3. Building and starting new containers..."
 # The 'up' command will now create fresh containers without any conflicts.
 sudo docker-compose up -d --build
 
-# echo "Waiting for containers to start..."
-# sleep 5 
+echo "Waiting for containers to start..."
+sleep 5 
 
-# echo "4. Seeding the PostgreSQL database..."
-# # This command remains the same as it targets the container by its name
-# sudo docker exec chat-backend-container python scripts/seed.py
+echo "4. Seeding the PostgreSQL database..."
+# This command remains the same as it targets the container by its name
+sudo docker exec chat-backend-container python scripts/seed.py
 
 # Redeploy the frontend
 echo "5. Redeploying frontend..."

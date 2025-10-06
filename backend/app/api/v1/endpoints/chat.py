@@ -30,7 +30,7 @@ async def broadcast_presence_update(tenant_id: int, user_id: int, role: str, sta
         "status": status,
         "timestamp": datetime.now(pytz.timezone('Asia/Kolkata')).isoformat()
     })
-    
+    print(f"BROADCASTING PRESENCE UPDATE: {payload} to {broadcast_list}")
     await manager.broadcast_to_users(payload, list(broadcast_list))
 
 def update_last_seen(entity_id: int, entity_role: str):
@@ -164,7 +164,7 @@ async def websocket_endpoint(
         # Ensure timestamp is in ISO format if it exists
         last_seen_iso = last_seen.isoformat() + "Z" if last_seen else None
         initial_state[member_cid] = {"status": status, "lastSeen": last_seen_iso}
-
+    print(f"Initial presence state for {connection_id_str}: {initial_state}")
     await manager.send_personal_message(json.dumps({
         "event": "initial_presence_state",
         "users": initial_state

@@ -56,6 +56,7 @@ export const PresenceProvider = ({ children }: { children: ReactNode }) => {
     // Case 1: Initial state (Can be removed, but if kept, ensure it doesn't overwrite real-time updates)
     // You can probably remove this whole block now if you rely on the first useEffect.
     if (lastEvent.event === "initial_presence_state") {
+      console.log("Received initial presence state via event:", lastEvent);
       // Only merge if state is empty, to prevent overwriting updates
       setPresence((prevState) => {
         if (Object.keys(prevState).length === 0) {
@@ -67,6 +68,7 @@ export const PresenceProvider = ({ children }: { children: ReactNode }) => {
 
     // Case 2: The backend sends an update for a single user's status change. (This is what wasn't working)
     if (lastEvent.event === "presence_update") {
+      console.log("Received presence update via event:", lastEvent);
       const { user, status, timestamp } = lastEvent;
       const userKey = `${user.role}-${user.id}`;
 

@@ -75,26 +75,14 @@ export const formatMessageTimestamp = (utcTimestamp: string): string => {
     // 3. formatInTimeZone converts the correct UTC moment to IST
     const istTime = formatInTimeZone(date, IST_TIMEZONE, "h:mm a");
 
-    console.log("Input string (fixed):", utcString);
-    console.log("IST timestamp (fixed):", istTime);
+    // console.log("Input string (fixed):", utcString);
+    // console.log("IST timestamp (fixed):", istTime);
 
     return istTime;
   } catch (error) {
     return "Invalid date";
   }
 };
-// export const formatMessageTimestamp = (utcTimestamp: string): string => {
-//   try {
-//     console.log("Formatting timestamp:", utcTimestamp);
-//     console.log(
-//       "IST timestamp:",
-//       formatInTimeZone(new Date(utcTimestamp), IST_TIMEZONE, "h:mm a")
-//     );
-//     return formatInTimeZone(new Date(utcTimestamp), IST_TIMEZONE, "h:mm a");
-//   } catch (error) {
-//     return "Invalid date";
-//   }
-// };
 
 /**
  * Formats a timestamp for the conversation list (e.g., "8:39 AM", "Yesterday", "03/10/2025").
