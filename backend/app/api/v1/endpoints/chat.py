@@ -23,12 +23,13 @@ async def broadcast_presence_update(tenant_id: int, user_id: int, role: str, sta
     # Use the cache to get the list of who to notify
     # broadcast_list = get_tenant_connection_ids(tenant_id, db)
     broadcast_list = await get_tenant_connection_ids(tenant_id, db, redis_client)
-    
+    timestamp = datetime.utcnow().isoformat() + "Z" if status == "offline" else None
     payload = json.dumps({
         "event": "presence_update",
         "user": {"id": user_id, "role": role},
         "status": status,
-        "timestamp": datetime.now(pytz.timezone('Asia/Kolkata')).isoformat()
+        "timestamp": timestamp,
+        # "timestamp": datetime.now(pytz.timezone('Asia/Kolkata')).isoformat()
     })
     print(f"BROADCASTING PRESENCE UPDATE: {payload} to {broadcast_list}")
     await manager.broadcast_to_users(payload, list(broadcast_list))
@@ -365,10 +366,10 @@ async def websocket_endpoint(
             
     except WebSocketDisconnect:
         manager.disconnect(connection_id_str)
-        await broadcast_presence_update(tenant_id, entity.id, token_data.role, "offline", db, redis_client)
         update_last_seen(entity.id, token_data.role)
+        await broadcast_presence_update(tenant_id, entity.id, token_data.role, "offline", db, redis_client)
     except Exception as e:
         print(f"Error in WebSocket: {e}")
         manager.disconnect(connection_id_str)
-        await broadcast_presence_update(tenant_id, entity.id, token_data.role, "offline", db, redis_client)
         update_last_seen(entity.id, token_data.role)
+        await broadcast_presence_update(tenant_id, entity.id, token_data.role, "offline", db, redis_client)

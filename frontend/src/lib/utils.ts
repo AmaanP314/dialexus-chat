@@ -139,9 +139,16 @@ export const formatLastSeen = (utcTimestamp: string): string => {
     if (isYesterday(date)) {
       return `last seen yesterday at ${timePart}`;
     }
-    const datePart = formatDate(date, "on dd/MM/yyyy");
+    // const datePart = formatDate(date, "on dd/MM/yyyy");
+    const datePart = formatDate(date, "'on' dd/MM/yyyy");
     return `last seen ${datePart}`;
   } catch (error) {
+    console.error(
+      "Error formatting last seen:",
+      error,
+      "with input:",
+      utcTimestamp
+    );
     return "Invalid date";
   }
 };
